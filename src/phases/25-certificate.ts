@@ -24,7 +24,7 @@ const CERTIFICATE_SOURCE_DIR = join('generated', 'certificate');
 
 export const certificatePhase: Phase = {
   id: 'certificate',
-  title: 'Create the self-signed certificate for the contact center',
+  title: 'Create the self-signed certificate',
 
   enabled: (ctx) => ctx.config.certificate.create,
 

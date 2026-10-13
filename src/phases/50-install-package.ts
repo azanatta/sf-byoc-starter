@@ -14,7 +14,7 @@ import { requireOrg, type Phase, type PhaseContext } from '../types.js';
 
 export const installPackagePhase: Phase = {
   id: 'install-package',
-  title: 'Install the Service Cloud Voice managed package',
+  title: 'Install the vendor managed package',
 
   enabled: (ctx) => ctx.config.package.versionId.trim() !== '',
 
@@ -24,7 +24,7 @@ export const installPackagePhase: Phase = {
 
     if (await isAlreadyInstalled(ctx, versionId)) {
       ctx.log.skip(`Package version ${versionId} is installed`);
-      ctx.facts['SCV package'] = `${versionId} (already installed)`;
+      ctx.facts['Package'] = `${versionId} (already installed)`;
       return;
     }
 
@@ -66,7 +66,7 @@ export const installPackagePhase: Phase = {
     }
 
     ctx.log.success(`Installed package version ${versionId}`);
-    ctx.facts['SCV package'] = versionId;
+    ctx.facts['Package'] = versionId;
   },
 };
 

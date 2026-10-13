@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>SCV org setup</title>
+<title>Messaging org setup</title>
 <!--
   The form is NOT written out here. It is generated at runtime from /api/state, which serves
   config/settings-schema.ts. That is deliberate: a hand-written form is a second place to define
@@ -73,11 +73,41 @@
   .banner.err { background: color-mix(in srgb, var(--err) 14%, transparent); color: var(--err); display: block; }
   .profiles { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; margin-left: auto; }
   .profiles select, .profiles input { width: auto; min-width: 130px; }
+  textarea {
+    width: 100%; min-height: 150px; padding: 7px 9px; border: 1px solid var(--border); border-radius: 6px;
+    background: var(--bg); color: var(--text); font-family: var(--mono); font-size: 12px; resize: vertical;
+  }
+  .step { border: 1px solid var(--border); border-radius: 10px; margin: 0 0 18px; background: var(--bg); }
+  .step > header { padding: 14px 16px; border-bottom: none; display: flex; align-items: center; gap: 12px; flex-wrap: nowrap; }
+  .step .num {
+    flex: none; width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center;
+    font-weight: 700; font-size: 13px; border: 2px solid var(--border); color: var(--muted);
+  }
+  .step h2 { font-size: 16px; margin: 0; }
+  .step .state { margin-left: auto; font-size: 12px; color: var(--muted); text-align: right; }
+  .step .body { padding: 0 16px 16px; }
+  .step .lead { margin: 0 0 14px; color: var(--muted); font-size: 13px; }
+  .step.current { border-color: var(--accent); }
+  .step.current .num { border-color: var(--accent); background: var(--accent); color: #fff; }
+  .step.done .num { border-color: var(--ok); background: var(--ok); color: #fff; }
+  .step.done .state { color: var(--ok); }
+  .step.locked .body { display: none; }
+  .step.locked h2 { color: var(--muted); }
+  details.group { border: 1px solid var(--border); border-radius: 8px; margin: 0 0 12px; background: var(--panel); }
+  details.group > summary {
+    padding: 10px 14px; cursor: pointer; font-weight: 600; font-size: 13px; text-transform: uppercase;
+    letter-spacing: .04em; color: var(--muted);
+  }
+  details.group > summary .flag { color: var(--warn); text-transform: none; letter-spacing: 0; font-weight: 400; margin-left: 8px; }
+  details.group > .fields { padding: 4px 16px 14px; }
+  .copyrow { display: flex; gap: 6px; }
+  .copyrow input { font-family: var(--mono); font-size: 12px; }
+  .copyrow button { white-space: nowrap; }
 </style>
 </head>
 <body>
 <header>
-  <h1>Service Cloud Voice — org setup</h1>
+  <h1>Partner Messaging — org setup</h1>
   <span class="path" id="envpath"></span>
   <div class="profiles">
     <select id="profileSelect"><option value="">Profile…</option></select>
@@ -91,18 +121,60 @@
 <main>
   <section class="pane left">
     <div class="banner" id="formBanner"></div>
-    <form id="form"></form>
+
+    <div class="step" id="step1">
+      <header><span class="num">1</span><h2>Set up the org</h2><span class="state" id="state1"></span></header>
+      <div class="body">
+        <p class="lead">Fill in the vendor package details, then press the button. It creates a new scratch org,
+          installs the package and configures the org for messaging. About five minutes; progress shows on the right.</p>
+        <form id="formSetup"></form>
+        <div class="actions" style="margin:4px 0 0">
+          <button class="primary" id="run">Set up the org</button>
+          <button id="save">Save settings</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="step" id="step2">
+      <header><span class="num">2</span><h2>Configure the external system</h2><span class="state" id="state2"></span></header>
+      <div class="body">
+        <p class="lead">The org is ready. Enter these four values in the external system (the flow and custom nodes
+          that call Salesforce), then continue with step 3.</p>
+        <div class="field"><label for="h_orgDomain">Salesforce org domain</label>
+          <div class="copyrow"><input type="text" id="h_orgDomain" readonly><button data-copy="h_orgDomain">Copy</button></div></div>
+        <div class="field"><label for="h_channelAddressIdentifier">Channel address identifier</label>
+          <div class="copyrow"><input type="text" id="h_channelAddressIdentifier" readonly><button data-copy="h_channelAddressIdentifier">Copy</button></div></div>
+        <div class="field"><label for="h_consumerSecret">Consumer secret</label>
+          <div class="copyrow"><input type="text" id="h_consumerSecret" readonly><button data-copy="h_consumerSecret">Copy</button></div></div>
+        <div class="field"><label for="h_consumerKey">Consumer key (client id)</label>
+          <div class="copyrow"><input type="text" id="h_consumerKey" readonly><button data-copy="h_consumerKey">Copy</button></div></div>
+      </div>
+    </div>
+
+    <div class="step" id="step3">
+      <header><span class="num">3</span><h2>Enter the external system details</h2><span class="state" id="state3"></span></header>
+      <div class="body">
+        <p class="lead">These go into the package configuration record in the org. Tick the first box once step 2 is done.</p>
+        <form id="formExternal"></form>
+      </div>
+    </div>
+
+    <div class="step" id="step4">
+      <header><span class="num">4</span><h2>Run the connection test</h2><span class="state" id="state4"></span></header>
+      <div class="body">
+        <p class="lead">Writes the configuration record, then opens the chat widget, sends a message, accepts the chat
+          in Omni-Channel and checks that it shows in Enhanced Conversation. A couple of minutes.</p>
+        <div class="actions" style="margin:0">
+          <button class="primary" id="connect">Run connection test</button>
+        </div>
+      </div>
+    </div>
   </section>
 
   <section class="pane right">
     <div class="actions">
-      <button class="primary" id="run">Run setup</button>
-      <button id="runVerify">Verify only</button>
-      <button id="save">Save .env</button>
-      <button id="stop" disabled>Stop</button>
-      <label class="row" style="font-weight:400;font-size:13px;margin-left:6px">
-        <input type="checkbox" id="freshOrg"> fresh org
-      </label>
+      <strong id="runTitle">Progress</strong>
+      <button id="stop" disabled style="margin-left:auto">Stop</button>
     </div>
     <div class="banner" id="runBanner"></div>
     <div id="log">Output appears here.</div>
@@ -123,14 +195,20 @@ function formValues() {
   return values;
 }
 
+const EXTERNAL_GROUP = 'External system';
+/** Groups a first-time user must look at; the rest hold working defaults and start collapsed. */
+const OPEN_GROUPS = ['Dev Hub', 'Scratch org', 'Vendor package', 'Messaging: vendor package', 'Messaging: chat widget'];
+
 function renderForm() {
-  const form = document.getElementById('form');
-  form.innerHTML = '';
+  const setup = document.getElementById('formSetup');
+  const external = document.getElementById('formExternal');
+  setup.innerHTML = '';
+  external.innerHTML = '';
+
   for (const group of STATE.groups) {
-    const fieldset = document.createElement('fieldset');
-    const legend = document.createElement('legend');
-    legend.textContent = group;
-    fieldset.appendChild(legend);
+    const isExternal = group.startsWith(EXTERNAL_GROUP);
+    const fields = document.createElement('div');
+    fields.className = 'fields';
 
     for (const setting of STATE.settings.filter(s => s.group === group)) {
       const wrap = document.createElement('div');
@@ -176,7 +254,6 @@ function renderForm() {
 
       input.id = 'f_' + setting.env;
       input.addEventListener('change', validate);
-      input.addEventListener('input', () => { /* debounce-free: validation is cheap and local */ });
 
       const desc = document.createElement('div');
       desc.className = 'desc';
@@ -188,10 +265,123 @@ function renderForm() {
       msg.id = 'm_' + setting.env;
       wrap.appendChild(msg);
 
-      fieldset.appendChild(wrap);
+      fields.appendChild(wrap);
     }
-    form.appendChild(fieldset);
+
+    if (isExternal) {
+      external.appendChild(fields);
+      fields.style.padding = '0';
+      continue;
+    }
+    const details = document.createElement('details');
+    details.className = 'group';
+    details.dataset.group = group;
+    details.open = OPEN_GROUPS.includes(group);
+    const summary = document.createElement('summary');
+    summary.innerHTML = group + '<span class="flag"></span>';
+    details.appendChild(summary);
+    details.appendChild(fields);
+    setup.appendChild(details);
+    if (group.includes('chat widget')) addWidgetEditor(fields);
   }
+}
+
+/** The widget embed code lives in a file (it is multi-line, so it cannot be a .env value). */
+function addWidgetEditor(fieldset) {
+  const wrap = document.createElement('div');
+  wrap.className = 'field';
+  wrap.innerHTML = '<label for="widgetMarkup">Widget embed code</label>'
+    + '<textarea id="widgetMarkup" spellcheck="false" placeholder="Paste what goes between the apex:page tags"></textarea>'
+    + '<div class="desc">Saved to the widget markup file above when you save or run.</div>';
+  fieldset.insertBefore(wrap, fieldset.children[1] || null);
+  fetch('/api/widget?file=' + encodeURIComponent(widgetFile()))
+    .then(r => r.json()).then(body => { document.getElementById('widgetMarkup').value = body.content || ''; });
+}
+
+function widgetFile() {
+  const el = document.getElementById('f_BYOC_WIDGET_FILE');
+  return el ? el.value : '';
+}
+
+async function saveWidget() {
+  const el = document.getElementById('widgetMarkup');
+  if (!el) return true;
+  const response = await fetch('/api/widget', {
+    method: 'POST', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ file: widgetFile(), content: el.value })
+  });
+  if (!response.ok) {
+    const body = await response.json();
+    banner('formBanner', 'err', body.error || 'Could not save the widget markup.');
+  }
+  return response.ok;
+}
+
+let HANDOFF = null;
+let RUNNING = null; // 'setup' | 'connect' | null
+
+/** One place decides what each step looks like, from the hand-off state and what is running. */
+function renderSteps() {
+  const installed = HANDOFF !== null && RUNNING !== 'setup';
+  const connected = installed && Boolean(HANDOFF.connectedAt);
+  const set = (n, cls, text) => {
+    document.getElementById('step' + n).className = 'step ' + cls;
+    document.getElementById('state' + n).textContent = text;
+  };
+  const when = iso => new Date(iso).toLocaleString();
+
+  if (RUNNING === 'setup') set(1, 'current', 'Running…');
+  else if (installed) set(1, 'done', 'Done — ' + HANDOFF.orgUsername + ', ' + when(HANDOFF.completedAt));
+  else set(1, 'current', 'Start here');
+
+  if (!installed) {
+    for (const n of [2, 3, 4]) set(n, 'locked', 'After step 1');
+    return;
+  }
+  for (const key of ['orgDomain', 'channelAddressIdentifier', 'consumerSecret', 'consumerKey']) {
+    document.getElementById('h_' + key).value = HANDOFF[key];
+  }
+  const ready = document.getElementById('f_BYOC_EXT_READY');
+  const confirmed = ready ? ready.checked : false;
+  set(2, connected || confirmed ? 'done' : 'current', connected || confirmed ? 'Done' : 'Do this now');
+  set(3, connected ? 'done' : (confirmed ? 'current' : ''), connected ? 'Done' : '');
+  if (RUNNING === 'connect') set(4, 'current', 'Running…');
+  else if (connected) set(4, 'done', 'Passed — ' + when(HANDOFF.connectedAt));
+  else set(4, confirmed ? 'current' : '', '');
+}
+
+async function loadHandoff() {
+  HANDOFF = (await (await fetch('/api/handoff')).json()).handoff;
+  renderSteps();
+}
+
+function showErrors(errors) {
+  for (const [env, message] of Object.entries(errors || {})) {
+    const wrap = document.getElementById('w_' + env);
+    const msg = document.getElementById('m_' + env);
+    if (!wrap || !msg) continue;
+    wrap.classList.add('invalid');
+    msg.className = 'msg err';
+    msg.textContent = message;
+  }
+}
+
+async function connect() {
+  if (!(await validate())) { banner('formBanner', 'err', 'Fix the errors above first.'); return; }
+  document.getElementById('log').innerHTML = '';
+  banner('runBanner', '', '');
+  const response = await fetch('/api/connect', {
+    method: 'POST', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ values: formValues() })
+  });
+  if (!response.ok) {
+    const body = await response.json();
+    showErrors(body.errors);
+    banner('runBanner', 'err', body.error || 'Complete step 3 first.');
+    return;
+  }
+  RUNNING = 'connect';
+  renderSteps();
 }
 
 /** Asks the server to validate; the server applies the SAME rules the run will. */
@@ -217,6 +407,11 @@ async function validate() {
       msg.className = 'msg warn';
       msg.textContent = warnings[setting.env];
     }
+  }
+  for (const details of document.querySelectorAll('details.group')) {
+    const needs = STATE.settings.some(s => s.group === details.dataset.group && (errors[s.env] || warnings[s.env]));
+    details.querySelector('.flag').textContent = needs ? 'needs attention' : '';
+    if (needs) details.open = true;
   }
   return Object.keys(errors).length === 0;
 }
@@ -249,6 +444,7 @@ function appendLog(line) {
 }
 
 async function save() {
+  if (!(await saveWidget())) return;
   if (!(await validate())) { banner('formBanner', 'err', 'Fix the errors above first.'); return; }
   const response = await fetch('/api/save', {
     method: 'POST', headers: { 'content-type': 'application/json' },
@@ -259,9 +455,11 @@ async function save() {
   banner('formBanner', 'ok', body.written.length
     ? 'Saved ' + body.written.length + ' customised setting(s) to .env'
     : 'Everything matches the defaults, so .env is empty.');
+  await validate();
 }
 
 async function run(args) {
+  if (!(await saveWidget())) return;
   if (!(await validate())) { banner('formBanner', 'err', 'Fix the errors above first.'); return; }
   document.getElementById('log').innerHTML = '';
   banner('runBanner', '', '');
@@ -271,14 +469,29 @@ async function run(args) {
   });
   if (!response.ok) {
     const body = await response.json();
-    banner('runBanner', 'err', body.error || 'Could not start the run.');
+    showErrors(body.errors);
+    banner('runBanner', 'err', body.error || Object.values(body.errors || {})[0] || 'Could not start the run.');
+    return;
   }
+  // From here the previous org's values must not be copied by mistake: steps 2 to 4 lock.
+  RUNNING = 'setup';
+  renderSteps();
+}
+
+/* The loaded profile is remembered per browser so "Save" with no name updates it. */
+function loadedProfile() {
+  try { return localStorage.getItem('loadedProfile') || ''; } catch { return ''; }
+}
+function setLoadedProfile(name) {
+  try { localStorage.setItem('loadedProfile', name); } catch { /* not remembered */ }
+  document.getElementById('profileName').placeholder = name ? 'Save as "' + name + '", or new name' : 'New profile name';
 }
 
 async function loadState() {
   STATE = await (await fetch('/api/state')).json();
   document.getElementById('envpath').textContent = STATE.envPath;
   renderForm();
+  document.getElementById('f_BYOC_EXT_READY')?.addEventListener('change', renderSteps);
   const select = document.getElementById('profileSelect');
   select.innerHTML = '<option value="">Profile…</option>';
   for (const name of STATE.profiles) {
@@ -286,6 +499,8 @@ async function loadState() {
     option.value = name; option.textContent = name;
     select.appendChild(option);
   }
+  setLoadedProfile(STATE.profiles.includes(loadedProfile()) ? loadedProfile() : '');
+  select.value = loadedProfile();
   await validate();
 }
 
@@ -293,22 +508,32 @@ async function loadState() {
 document.getElementById('save').addEventListener('click', e => { e.preventDefault(); save(); });
 document.getElementById('run').addEventListener('click', e => {
   e.preventDefault();
-  run(document.getElementById('freshOrg').checked ? ['--no-reuse'] : []);
+  run([]);
 });
-document.getElementById('runVerify').addEventListener('click', e => { e.preventDefault(); run(['--only=verify']); });
+document.getElementById('connect').addEventListener('click', e => { e.preventDefault(); connect(); });
+for (const button of document.querySelectorAll('[data-copy]')) {
+  button.addEventListener('click', async e => {
+    e.preventDefault();
+    await navigator.clipboard.writeText(document.getElementById(button.dataset.copy).value);
+    button.textContent = 'Copied';
+    setTimeout(() => { button.textContent = 'Copy'; }, 1200);
+  });
+}
 document.getElementById('stop').addEventListener('click', e => { e.preventDefault(); fetch('/api/stop', { method: 'POST' }); });
 
 document.getElementById('saveProfile').addEventListener('click', async e => {
   e.preventDefault();
-  const name = document.getElementById('profileName').value.trim();
-  if (!name) { banner('formBanner', 'err', 'Give the profile a name.'); return; }
+  // No name typed: save over the profile that is loaded.
+  const name = document.getElementById('profileName').value.trim() || loadedProfile();
+  if (!name) { banner('formBanner', 'err', 'Give the profile a name, or load one first.'); return; }
   await fetch('/api/profiles/save', {
     method: 'POST', headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ name, values: formValues() })
   });
   document.getElementById('profileName').value = '';
+  setLoadedProfile(name);
   await loadState();
-  banner('formBanner', 'ok', 'Saved profile "' + name + '". Secrets are never stored in a profile.');
+  banner('formBanner', 'ok', 'Saved profile "' + name + '". Secrets are kept in .env, not in the profile.');
 });
 
 document.getElementById('loadProfile').addEventListener('click', async e => {
@@ -320,7 +545,9 @@ document.getElementById('loadProfile').addEventListener('click', async e => {
   if (!response.ok) { banner('formBanner', 'err', body.error); return; }
   Object.assign(STATE.values, body.values);
   renderForm();
+  renderSteps();
   await validate();
+  setLoadedProfile(name);
   banner('formBanner', 'ok', 'Loaded profile "' + name + '".');
 });
 
@@ -340,20 +567,27 @@ const events = new EventSource('/api/stream');
 events.addEventListener('started', () => {
   banner('runBanner', '', '');
   document.getElementById('run').disabled = true;
-  document.getElementById('runVerify').disabled = true;
+  document.getElementById('connect').disabled = true;
   document.getElementById('stop').disabled = false;
 });
 events.addEventListener('line', e => appendLog(JSON.parse(e.data).line));
 events.addEventListener('finished', e => {
   const { code } = JSON.parse(e.data);
-  banner('runBanner', code === 0 ? 'ok' : 'err',
-    code === 0 ? 'Run finished successfully.' : 'Run failed (exit code ' + code + ').');
+  const what = RUNNING === 'connect' ? 'Connection test' : 'Org setup';
+  banner('runBanner', code === 0 ? 'ok' : 'err', code === 0
+    ? (RUNNING === 'connect' ? 'Connection test passed.' : 'Org is ready. Continue with step 2.')
+    : what + ' failed (exit code ' + code + '). The reason is at the end of the output.');
+  const finished = RUNNING;
+  RUNNING = null;
+  loadHandoff().then(() => {
+    if (code === 0 && finished === 'setup') document.getElementById('step2').scrollIntoView({ behavior: 'smooth' });
+  });
   document.getElementById('run').disabled = false;
-  document.getElementById('runVerify').disabled = false;
+  document.getElementById('connect').disabled = false;
   document.getElementById('stop').disabled = true;
 });
 
-loadState();
+loadState().then(loadHandoff);
 </script>
 </body>
 </html>

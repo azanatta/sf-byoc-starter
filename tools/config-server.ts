@@ -22,15 +22,40 @@
  */
 
 import { spawn, spawnSync, type ChildProcess } from 'node:child_process';
-import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
-import { resolve } from 'node:path';
-import { SETTINGS, settingGroups, validateAll, type Setting } from '../config/settings-schema.js';
+import { dirname, resolve } from 'node:path';
+import { validateExternalValues } from '../config/byoc-settings.js';
+import { SETTINGS as ALL_SETTINGS, validateAll, type Setting } from '../config/settings-schema.js';
+import { latestHandoff } from '../src/byoc/state.js';
 
 const PORT = Number.parseInt(process.env['SCV_CONFIG_PORT'] ?? '4747', 10);
 const ENV_PATH = resolve(process.cwd(), '.env');
 const PROFILES_PATH = resolve(process.cwd(), 'config/profiles.json');
 const UI_PATH = resolve(process.cwd(), 'tools/config-ui.html');
+
+/**
+ * Upstream (Voice) settings that the messaging pipeline never reads. They stay in the schema so the
+ * upstream phases keep compiling, but showing them would only invite filling in the wrong form.
+ */
+const HIDDEN_GROUPS = new Set([
+  'Permissions',
+  'CSP trusted sites',
+  'Remote site settings',
+  'Presence statuses',
+  'Contact center',
+  'Console app',
+]);
+const HIDDEN_SETTINGS = new Set(['SCV_REUSE_ORG', 'SCV_VOICE_FEATURES', 'SCV_ORG_EDITION']);
+const SETTINGS = ALL_SETTINGS.filter(
+  (setting) => !HIDDEN_GROUPS.has(setting.group) && !HIDDEN_SETTINGS.has(setting.env),
+);
+
+function settingGroups(): string[] {
+  const groups: string[] = [];
+  for (const setting of SETTINGS) if (!groups.includes(setting.group)) groups.push(setting.group);
+  return groups;
+}
 
 /** Masked stand-in for secret values, so the real one never reaches the browser. */
 const SECRET_PLACEHOLDER = '••••••••';
@@ -48,7 +73,8 @@ function readEnvFile(): Record<string, string> {
     if (trimmed === '' || trimmed.startsWith('#')) continue;
     const index = trimmed.indexOf('=');
     if (index === -1) continue;
-    values[trimmed.slice(0, index).trim()] = trimmed.slice(index + 1).trim();
+    const raw = trimmed.slice(index + 1).trim();
+    values[trimmed.slice(0, index).trim()] = /^'.*'$/.test(raw) ? raw.slice(1, -1) : raw;
   }
   return values;
 }
@@ -77,7 +103,9 @@ function writeEnvFile(values: Record<string, string>): string[] {
     lines.push(`# ${'-'.repeat(90)}`, `# ${group}`, `# ${'-'.repeat(90)}`);
     for (const setting of groupSettings) {
       lines.push(`# ${setting.description}`);
-      lines.push(`${setting.env}=${values[setting.env] ?? ''}`);
+      // Quoted when needed: Node's --env-file reads an unquoted "#" as the start of a comment.
+      const value = values[setting.env] ?? '';
+      lines.push(`${setting.env}=${/[#"\s]/.test(value) && !value.includes("'") ? `'${value}'` : value}`);
       written.push(setting.env);
     }
     lines.push('');
@@ -183,40 +211,15 @@ function environmentChecks(values: Record<string, string>): Record<string, strin
     }
   }
 
-  const xmlPath = values['SCV_CC_DEFINITION_FILE'] ?? '';
-  const wantsContactCenter = ['true', '1', 'yes', 'on'].includes(
-    (values['SCV_CREATE_CONTACT_CENTER'] ?? 'true').toLowerCase(),
-  );
-
-  // Asking to import a contact center without a package to install cannot work: the wizard lists
-  // telephony providers from ConversationVendorInfo records that ship INSIDE the vendor package, so
-  // with no package there is nothing to choose. Catching it here is the difference between a warning
-  // now and discovering it several minutes into a run.
-  if (wantsContactCenter && (values['SCV_PACKAGE_VERSION_ID'] ?? '').trim() === '') {
-    warnings['SCV_PACKAGE_VERSION_ID'] =
-      'Needed to import a contact center — the telephony provider list comes from the vendor package. ' +
-      'Either set it, or turn "Import contact center" off to stop at "ready to install".';
+  if ((values['SCV_PACKAGE_VERSION_ID'] ?? '').trim() === '') {
+    warnings['SCV_PACKAGE_VERSION_ID'] = 'Required: the messaging package to install.';
   }
-
-  if (wantsContactCenter && xmlPath.trim() !== '') {
-    const full = resolve(process.cwd(), xmlPath);
-    if (!existsSync(full)) {
-      warnings['SCV_CC_DEFINITION_FILE'] =
-        'File not found. The contact center phase will skip and report a manual step.';
-    } else {
-      const xml = readFileSync(full, 'utf8');
-      const internal = xml.match(/name="reqInternalName"[^>]*>([^<]+)</)?.[1]?.trim();
-      const configured = (values['SCV_CC_INTERNAL_NAME'] ?? '').trim();
-      if (configured !== '' && internal && configured !== internal) {
-        warnings['SCV_CC_INTERNAL_NAME'] =
-          `The XML says "${internal}". A different value here makes every run re-import. ` +
-          'Leave it empty to take it from the file.';
-      }
-      if (!/name="reqVendorInfoApiName"[^>]*>[^<]+</.test(xml)) {
-        warnings['SCV_CC_DEFINITION_FILE'] =
-          'This file has no reqVendorInfoApiName value, so the telephony provider cannot be derived.';
-      }
-    }
+  for (const name of ['BYOC_CHANNEL_MATCH', 'BYOC_PACKAGE_PERMISSION_SETS', 'BYOC_CONFIG_OBJECT']) {
+    if ((values[name] ?? '').trim() === '') warnings[name] = 'Required for the setup; it comes from the vendor package.';
+  }
+  const widgetFile = resolve(process.cwd(), values['BYOC_WIDGET_FILE'] ?? '');
+  if (!existsSync(widgetFile) || readFileSync(widgetFile, 'utf8').trim() === '') {
+    warnings['BYOC_WIDGET_FILE'] = 'No widget markup yet. Paste it in the box below and save.';
   }
   return warnings;
 }
@@ -305,6 +308,26 @@ function restoreSecrets(incoming: Record<string, string>): Record<string, string
   return merged;
 }
 
+/** Whether the CLI already knows an org under this alias. A setup run never replaces one. */
+function orgExists(alias: string): boolean {
+  if (alias === '') return false;
+  const check = spawnSync('sf', ['org', 'display', '--target-org', alias, '--json'], {
+    encoding: 'utf8',
+    env: { ...process.env, FORCE_COLOR: '0', NO_COLOR: '1' },
+  });
+  return check.status === 0;
+}
+
+/** The widget markup file, confined to vendor/ so the endpoint cannot write elsewhere. */
+function widgetPath(file: string): string {
+  const vendorDir = resolve(process.cwd(), 'vendor');
+  const path = resolve(process.cwd(), file.trim() === '' ? 'vendor/chat-widget.html' : file);
+  if (path !== vendorDir && !path.startsWith(`${vendorDir}/`)) {
+    throw new Error('The widget markup file must be inside vendor/.');
+  }
+  return path;
+}
+
 async function readBody(request: IncomingMessage): Promise<Record<string, unknown>> {
   const chunks: Buffer[] = [];
   for await (const chunk of request) chunks.push(chunk as Buffer);
@@ -367,14 +390,20 @@ const server = createServer(async (request, response) => {
         sendJson(response, 400, { error: 'A profile needs a name.' });
         return;
       }
-      const values = (body['values'] ?? {}) as Record<string, string>;
+      const values = restoreSecrets((body['values'] ?? {}) as Record<string, string>);
       // Secrets are deliberately NOT stored in a profile: profiles are meant to be shareable and
       // committable, and an installation key in a JSON file is exactly the kind of thing that leaks.
+      // They are kept in `.env` instead, so saving a profile does not lose what was typed.
       const safe: Record<string, string> = {};
+      const env: Record<string, string> = {};
+      const existing = readEnvFile();
       for (const setting of SETTINGS) {
-        if (setting.secret) continue;
-        if (values[setting.env] !== undefined) safe[setting.env] = values[setting.env] as string;
+        env[setting.env] = existing[setting.env] ?? setting.default;
+        if (values[setting.env] === undefined) continue;
+        if (setting.secret) env[setting.env] = values[setting.env] as string;
+        else safe[setting.env] = values[setting.env] as string;
       }
+      writeEnvFile(env);
       const profiles = readProfiles();
       profiles[name] = safe;
       writeProfiles(profiles);
@@ -403,6 +432,51 @@ const server = createServer(async (request, response) => {
       return;
     }
 
+    if (request.method === 'GET' && url.pathname === '/api/handoff') {
+      // Local-only page, and these four values exist to be copied into the external system.
+      sendJson(response, 200, { handoff: latestHandoff() ?? null });
+      return;
+    }
+
+    if (request.method === 'GET' && url.pathname === '/api/widget') {
+      const path = widgetPath(url.searchParams.get('file') ?? '');
+      sendJson(response, 200, { content: existsSync(path) ? readFileSync(path, 'utf8') : '' });
+      return;
+    }
+
+    if (request.method === 'POST' && url.pathname === '/api/widget') {
+      const body = await readBody(request);
+      const path = widgetPath(String(body['file'] ?? ''));
+      mkdirSync(dirname(path), { recursive: true });
+      writeFileSync(path, String(body['content'] ?? ''), 'utf8');
+      sendJson(response, 200, { saved: true });
+      return;
+    }
+
+    if (request.method === 'POST' && url.pathname === '/api/connect') {
+      const body = await readBody(request);
+      const values = restoreSecrets((body['values'] ?? {}) as Record<string, string>);
+      const errors = { ...validateAll(values), ...validateExternalValues(values) };
+      if (Object.keys(errors).length > 0) {
+        sendJson(response, 400, { errors });
+        return;
+      }
+      const handoff = latestHandoff();
+      if (!handoff) {
+        sendJson(response, 409, { error: 'Run the setup first: there is no installed org to connect.' });
+        return;
+      }
+      // Saved first so the external values survive a restart of this page.
+      writeEnvFile(values);
+      try {
+        startRun(values, ['--connect', `--org=${handoff.orgUsername}`]);
+        sendJson(response, 200, { started: true });
+      } catch (error) {
+        sendJson(response, 409, { error: error instanceof Error ? error.message : String(error) });
+      }
+      return;
+    }
+
     if (request.method === 'GET' && url.pathname === '/api/stream') {
       response.writeHead(200, {
         'content-type': 'text/event-stream',
@@ -423,6 +497,13 @@ const server = createServer(async (request, response) => {
       const errors = validateAll(values);
       if (Object.keys(errors).length > 0) {
         sendJson(response, 400, { errors });
+        return;
+      }
+      const alias = (values['SCV_ORG_ALIAS'] ?? '').trim();
+      if (!args.some((arg) => arg.startsWith('--org=') || arg.startsWith('--only=')) && orgExists(alias)) {
+        sendJson(response, 400, {
+          errors: { SCV_ORG_ALIAS: `An org named "${alias}" already exists. Choose a different name.` },
+        });
         return;
       }
       try {

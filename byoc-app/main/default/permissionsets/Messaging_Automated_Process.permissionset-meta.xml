@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Deliberately empty. It is selected on the Interaction API external client app and assigned to the
+  Automated Process user, which is what pre-authorizes that user on the app.
+-->
+<PermissionSet xmlns="http://soap.sforce.com/2006/04/metadata">
+    <description>Pre-authorizes the Automated Process user on the Interaction API external client app.</description>
+    <hasActivationRequired>false</hasActivationRequired>
+    <label>Messaging Automated Process</label>
+</PermissionSet>

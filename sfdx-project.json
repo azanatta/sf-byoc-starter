@@ -6,6 +6,9 @@
     },
     {
       "path": "app-src"
+    },
+    {
+      "path": "byoc-app"
     }
   ],
   "name": "sf-voice-starter",

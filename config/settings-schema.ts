@@ -20,6 +20,8 @@
  * ============================================================================================
  */
 
+import { BYOC_SETTINGS } from './byoc-settings.js';
+
 export type SettingType = 'string' | 'number' | 'boolean' | 'select' | 'list' | 'file';
 
 export interface Setting {
@@ -606,6 +608,8 @@ export const SETTINGS: Setting[] = [
     default: 'true',
     group: 'Runtime',
   },
+
+  ...BYOC_SETTINGS,
 ];
 
 /** Lookup by environment variable name. */

@@ -11,6 +11,7 @@
  *   npm run setup -- --no-reuse            Force a brand new scratch org
  *   npm run setup -- --delete              Delete the configured scratch org and exit
  *   npm run setup -- --list                List phases and exit
+ *   npm run connect                        Second stage: configuration record + connection test
  *
  * Exit codes: 0 success, 1 a phase failed, 2 bad usage.
  */
@@ -37,6 +38,13 @@ import { contactCenterPhase } from './phases/60-contact-center.js';
 import { contactCenterUsersPhase } from './phases/65-contact-center-users.js';
 import { consoleAppPhase } from './phases/70-console-app.js';
 import { verifyPhase } from './phases/80-verify.js';
+import { byocCreateOrgPhase } from './phases/byoc-10-create-org.js';
+import { byocOrgPrepPhase } from './phases/byoc-20-org-prep.js';
+import { byocClientAppsPhase } from './phases/byoc-30-client-apps.js';
+import { byocChannelPhase } from './phases/byoc-40-channel.js';
+import { byocHandoffPhase } from './phases/byoc-50-handoff.js';
+import { byocConfigRecordPhase } from './phases/byoc-60-config-record.js';
+import { byocE2ePhase } from './phases/byoc-70-e2e.js';
 
 /**
  * The pipeline, in execution order.
@@ -49,16 +57,35 @@ import { verifyPhase } from './phases/80-verify.js';
  *     contact centers Setup page is even visible (60 after 40).
  *   - The contact center must exist before a user can be added to it (65 after 60).
  */
+/**
+ * Second stage: runs only with --connect, after the external system has been configured with the
+ * hand-off values. It needs input that does not exist during the first stage.
+ */
+const CONNECT_PHASES: Phase[] = [byocConfigRecordPhase, byocE2ePhase];
+
 const PHASES: Phase[] = [
   preflightPhase,
+  byocCreateOrgPhase,
+  installPackagePhase,
+  certificatePhase,
+  byocOrgPrepPhase,
+  byocClientAppsPhase,
+  byocChannelPhase,
+  byocHandoffPhase,
+  ...CONNECT_PHASES,
+];
+
+/**
+ * The upstream Voice phases are not part of this pipeline. They are kept in the tree (and imported)
+ * so merges from upstream stay clean and a later CCaaS step can reuse them.
+ */
+export const UNUSED_UPSTREAM_PHASES: Phase[] = [
   createOrgPhase,
   deploySettingsPhase,
   cspTrustedSitesPhase,
   remoteSiteSettingsPhase,
-  certificatePhase,
   enableVoicePhase,
   permissionsPhase,
-  installPackagePhase,
   renderContactCenterPhase,
   contactCenterPhase,
   contactCenterUsersPhase,
@@ -86,11 +113,13 @@ function parseArgs(argv: string[]): CliOptions {
     list: false,
   };
 
+  let connect = false;
   for (const arg of argv) {
     if (arg === '--headed') options.headed = true;
     else if (arg === '--no-reuse') options.noReuse = true;
     else if (arg === '--delete') options.deleteOrg = true;
     else if (arg === '--list') options.list = true;
+    else if (arg === '--connect') connect = true;
     else if (arg.startsWith('--only=')) {
       for (const id of arg.slice('--only='.length).split(',')) options.only.add(id.trim());
     } else if (arg.startsWith('--skip=')) {
@@ -102,6 +131,10 @@ function parseArgs(argv: string[]): CliOptions {
       process.exit(2);
     }
   }
+
+  // The two stages never run together: the second needs values the user supplies in between.
+  if (connect) for (const phase of CONNECT_PHASES) options.only.add(phase.id);
+  else if (options.only.size === 0) for (const phase of CONNECT_PHASES) options.skip.add(phase.id);
 
   const known = new Set(PHASES.map((phase) => phase.id));
   for (const id of [...options.only, ...options.skip]) {
@@ -169,7 +202,7 @@ async function main(): Promise<void> {
   // Resolve it from the configured alias up front so that `--only=verify`, `--skip=create-org` and
   // `--org=<alias>` all work standalone instead of failing with "no target org in context".
   // A failure here is not fatal: create-org may legitimately be in the selection and about to make it.
-  const willCreateOrg = selected.some((phase) => phase.id === createOrgPhase.id);
+  const willCreateOrg = selected.some((phase) => phase.id === byocCreateOrgPhase.id);
   // preflight is the one phase that inspects the Dev Hub rather than the scratch org, so a
   // preflight-only run must not complain about a scratch org it was never going to touch.
   const needsOrg = selected.some((phase) => phase.id !== preflightPhase.id);
@@ -257,9 +290,10 @@ function printSummary(
     // Only suggest --headed for phases that can actually open a browser; on a CLI-only phase it does
     // nothing and sends the reader looking for a UI problem that isn't there.
     const headedHint = failed.phase.usesBrowser ? ' --headed' : '';
-    process.stdout.write(
-      `\n${style.dim(`Re-run just this phase:  npm run setup -- --only=${failed.phase.id}${headedHint}`)}\n`,
-    );
+    // The CLI reads process.env only, and a re-run must name the org or it would create a new one.
+    const orgHint = ctx.org ? ` --org=${ctx.org.username}` : '';
+    const rerun = `npx tsx --env-file=.env src/cli.ts${orgHint} --only=${failed.phase.id}${headedHint}`;
+    process.stdout.write(`\n${style.dim(`Re-run just this phase:  ${rerun}`)}\n`);
   } else {
     process.stdout.write(`${style.green('SUCCESS')} in ${seconds}s\n`);
   }

@@ -1,15 +1,16 @@
 {
-  "name": "sf-voice-starter",
+  "name": "sf-byoc-starter",
   "version": "1.0.0",
   "private": true,
   "type": "module",
-  "description": "Prepares a Salesforce scratch org with the configuration required to install a Service Cloud Voice (Partner Telephony / BYOT) managed package on top, then optionally installs it and completes post-install configuration.",
+  "description": "Creates a Salesforce scratch org, installs a Partner Messaging (bring-your-own-channel) managed package, configures the org for it, and proves the chat round trip with the external messaging system.",
   "engines": {
     "node": ">=20"
   },
   "scripts": {
     "setup": "tsx src/cli.ts",
     "setup:headed": "tsx src/cli.ts --headed",
+    "connect": "tsx src/cli.ts --connect",
     "verify": "tsx src/cli.ts --only=verify",
     "delete-org": "tsx src/cli.ts --delete",
     "test": "playwright test",

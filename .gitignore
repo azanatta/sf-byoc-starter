@@ -72,14 +72,6 @@ vendor/
 config/profiles.json
 
 # ---------------------------------------------------------------------------------------------
-# Working notes
-#
-# docs/ is a local scratch area for implementation notes and roadmaps. Anything meant for readers
-# of this repo belongs in README.md; drop this line only after checking what is in there.
-# ---------------------------------------------------------------------------------------------
-docs/
-
-# ---------------------------------------------------------------------------------------------
 # Tooling and editors
 # ---------------------------------------------------------------------------------------------
 .claude/settings.local.json
@@ -95,3 +87,6 @@ yarn-error.log*
 # macOS / Windows
 .DS_Store
 Thumbs.db
+
+# Vendor-specific notes (names, guide URLs) — must never be committed
+*.local.md

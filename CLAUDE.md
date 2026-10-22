@@ -57,7 +57,7 @@ The CLI reads `process.env` only. From a terminal use `npx tsx --env-file=.env s
 Two stages, never run together, because the second needs values a person supplies in between:
 
 1. **Setup** (`npm run setup`): `preflight` → `byoc-create-org` → `install-package` → `certificate` → `byoc-org-prep` → `byoc-client-apps` → `byoc-channel` → `byoc-handoff`. Reaching `byoc-handoff` is "install success"; it records four values (org domain, channel address identifier, consumer key, consumer secret) for the external system.
-2. **Connect** (`--connect`): `byoc-config-record` → `byoc-e2e`. Writes the package configuration record from the external-system values, then Playwright sends a message from the chat widget, accepts the work item in Omni-Channel and asserts the message is shown in Enhanced Conversation.
+2. **Connect** (`--connect`): `byoc-remote-site` → `byoc-config-record` → `byoc-e2e`. Trusts the external API host, writes the package configuration record from the external-system values, then Playwright sends a message from the chat widget, accepts the work item in Omni-Channel and asserts the message is shown in Enhanced Conversation.
 
 Where things live:
 

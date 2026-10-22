@@ -28,7 +28,7 @@ Everything in `01-analysis.md` marked proven was exercised in the spike org (`by
 
 ## Phase 5 — Stage B `[x]` code · `[~]` verified without the external system
 
-- [x] `byoc-config-record`, `byoc-e2e`
+- [x] `byoc-remote-site`, `byoc-config-record`, `byoc-e2e`
 - [x] Configuration record + remote site (placeholder values), agent half of the test, widget dry run
 - [x] Run against the real external system (passed 2026-10-13, 200 s, from the terminal)
 

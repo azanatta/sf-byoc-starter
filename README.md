@@ -96,7 +96,8 @@ And step 4:
 
 | Phase | What |
 | --- | --- |
-| `byoc-config-record` | Package configuration record and the remote site for the external API |
+| `byoc-remote-site` | Remote site for the external API, from the host pattern and the tenant |
+| `byoc-config-record` | Package configuration record |
 | `byoc-e2e` | The browser-driven connection test |
 
 No step uses the Setup UI; the browser is only used for the connection test.

@@ -1,7 +1,7 @@
 /**
- * Second stage, step one: the package configuration record and the remote site for the external
- * API. Both need values that only exist after the external system is set up, and the record's
- * external fields are required, so it is created here in one go rather than earlier.
+ * Second stage: the package configuration record. It needs values that only exist after the
+ * external system is set up, and the record's external fields are required, so it is created here
+ * in one go rather than earlier.
  *
  * Certificate NAME is filled and the private key field is left alone: the vendor guide says to use
  * exactly one of the two.
@@ -9,17 +9,15 @@
 
 import { byocConfig, type ConfigField } from '../../config/byoc.config.js';
 import { validateExternalValues } from '../../config/byoc-settings.js';
-import { createRecord, deployDir, escapeXml, fieldNames, freshDir, queryFirst, soqlString, updateRecord } from '../byoc/org.js';
+import { createRecord, fieldNames, queryFirst, soqlString, updateRecord } from '../byoc/org.js';
 import { orgIdOf, readState } from '../byoc/state.js';
 import { requireOrg, type Phase, type PhaseContext } from '../types.js';
 
-const REMOTE_SITE_SOURCE = 'generated/byoc/external-remote-site';
-const REMOTE_SITE_NAME = 'Messaging_External_Api';
 const REQUIRED_FIELDS: ConfigField[] = ['platformKey', 'clientId', 'certificateName', 'tenant', 'serviceId', 'serviceSecret'];
 
 export const byocConfigRecordPhase: Phase = {
   id: 'byoc-config-record',
-  title: 'Write the package configuration record and trust the external API',
+  title: 'Write the package configuration record',
 
   async run(ctx: PhaseContext) {
     const config = byocConfig();
@@ -91,38 +89,5 @@ export const byocConfigRecordPhase: Phase = {
       await createRecord(ctx, config.configRecord.object, values);
       ctx.log.success('Configuration record created');
     }
-
-    await trustExternalApi(ctx);
   },
 };
-
-async function trustExternalApi(ctx: PhaseContext): Promise<void> {
-  const { external, externalApiHostPattern } = byocConfig();
-  if (externalApiHostPattern === '') {
-    throw new Error(
-      'No external API host pattern configured (BYOC_EXT_API_HOST_PATTERN). Without a remote site ' +
-        'for the external API the org cannot send agent messages out.',
-    );
-  }
-  const url = externalApiHostPattern
-    .replaceAll('{tenant}', external.tenant)
-    .replaceAll('{subdomain}', external.mtlsEnabled ? external.mtlsSubdomain : 'api');
-  if (!/^https:\/\/[A-Za-z0-9.-]+$/.test(url)) {
-    throw new Error(`The external API URL "${url}" is not a valid https host. Check the tenant and the host pattern.`);
-  }
-  const write = freshDir(REMOTE_SITE_SOURCE);
-  write(
-    `remoteSiteSettings/${REMOTE_SITE_NAME}.remoteSite-meta.xml`,
-    `<?xml version="1.0" encoding="UTF-8"?>
-<RemoteSiteSetting xmlns="http://soap.sforce.com/2006/04/metadata">
-    <description>External messaging API</description>
-    <disableProtocolSecurity>false</disableProtocolSecurity>
-    <isActive>true</isActive>
-    <url>${escapeXml(url)}</url>
-</RemoteSiteSetting>
-`,
-  );
-  await deployDir(ctx, REMOTE_SITE_SOURCE, 'the external API remote site');
-  ctx.log.success(`Remote site added: ${url}`);
-  ctx.facts['External API remote site'] = url;
-}

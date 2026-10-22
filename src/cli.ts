@@ -44,6 +44,7 @@ import { byocOrgPrepPhase } from './phases/byoc-20-org-prep.js';
 import { byocClientAppsPhase } from './phases/byoc-30-client-apps.js';
 import { byocChannelPhase } from './phases/byoc-40-channel.js';
 import { byocHandoffPhase } from './phases/byoc-50-handoff.js';
+import { byocRemoteSitePhase } from './phases/byoc-55-remote-site.js';
 import { byocConfigRecordPhase } from './phases/byoc-60-config-record.js';
 import { byocE2ePhase } from './phases/byoc-70-e2e.js';
 
@@ -62,7 +63,7 @@ import { byocE2ePhase } from './phases/byoc-70-e2e.js';
  * Second stage: runs only with --connect, after the external system has been configured with the
  * hand-off values. It needs input that does not exist during the first stage.
  */
-const CONNECT_PHASES: Phase[] = [byocConfigRecordPhase, byocE2ePhase];
+const CONNECT_PHASES: Phase[] = [byocRemoteSitePhase, byocConfigRecordPhase, byocE2ePhase];
 
 const PHASES: Phase[] = [
   preflightPhase,

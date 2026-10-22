@@ -487,11 +487,21 @@ function setLoadedProfile(name) {
   document.getElementById('profileName').placeholder = name ? 'Save as "' + name + '", or new name' : 'New profile name';
 }
 
+/** The setup cannot start without the package namespace: every field name derives from it. */
+function updateRunButton() {
+  const namespace = document.getElementById('f_BYOC_NAMESPACE')?.value.trim() ?? '';
+  const button = document.getElementById('run');
+  button.disabled = RUNNING !== null || namespace === '';
+  button.title = namespace === '' ? 'Enter the package namespace first.' : '';
+}
+
 async function loadState() {
   STATE = await (await fetch('/api/state')).json();
   document.getElementById('envpath').textContent = STATE.envPath;
   renderForm();
   document.getElementById('f_BYOC_EXT_READY')?.addEventListener('change', renderSteps);
+  document.getElementById('f_BYOC_NAMESPACE')?.addEventListener('input', updateRunButton);
+  updateRunButton();
   const select = document.getElementById('profileSelect');
   select.innerHTML = '<option value="">Profile…</option>';
   for (const name of STATE.profiles) {
@@ -546,6 +556,7 @@ document.getElementById('loadProfile').addEventListener('click', async e => {
   Object.assign(STATE.values, body.values);
   renderForm();
   renderSteps();
+  updateRunButton();
   await validate();
   setLoadedProfile(name);
   banner('formBanner', 'ok', 'Loaded profile "' + name + '".');
@@ -582,7 +593,7 @@ events.addEventListener('finished', e => {
   loadHandoff().then(() => {
     if (code === 0 && finished === 'setup') document.getElementById('step2').scrollIntoView({ behavior: 'smooth' });
   });
-  document.getElementById('run').disabled = false;
+  updateRunButton();
   document.getElementById('connect').disabled = false;
   document.getElementById('stop').disabled = true;
 });

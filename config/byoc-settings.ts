@@ -31,17 +31,39 @@ function nonEmpty(value: string): string | undefined {
 /** Delivery receipt statuses the configuration record accepts, per the vendor guide. */
 export const RECEIPT_STATUSES = ['SUBMITTED', 'DELIVERED', 'CLICKED', 'FAILED'];
 
+/**
+ * Field API names without namespace, used when a field setting is left empty: the field then
+ * resolves to `<namespace>__<name>`. Keyed by env var.
+ */
+export const FIELD_DEFAULT_NAMES: Record<string, string> = {
+  BYOC_F_PLATFORM_KEY: 'Messaging_Channel_Platform_Key__c',
+  BYOC_F_LABEL: 'Configuration_Label__c',
+  BYOC_F_CLIENT_ID: 'Ext_Client_App_Client_Id__c',
+  BYOC_F_CERT_NAME: 'Certificate_Name__c',
+  BYOC_F_TENANT: 'Webex_Tenant__c',
+  BYOC_F_SERVICE_ID: 'Webex_Service_Id__c',
+  BYOC_F_SERVICE_SECRET: 'Webex_Service_Secret__c',
+  BYOC_F_END_CHAT_EVENT: 'Webex_End_Chat_Event_Id__c',
+  BYOC_F_PARTICIPANT_EVENT: 'Webex_Participant_Changed_Event_Id__c',
+  BYOC_F_MTLS_ENABLED: 'Webex_mTLS_Enabled__c',
+  BYOC_F_MTLS_SUBDOMAIN: 'Webex_mTLS_Api_Subdomain__c',
+  BYOC_F_MTLS_CERT: 'Webex_mTLS_Certificate_Name__c',
+  BYOC_F_RECEIPTS_AUTH: 'Webex_Receipts_Auth_Id__c',
+  BYOC_F_RECEIPTS_REQUESTED: 'Webex_Receipts_Request__c',
+};
+
 /** One configuration-record field: the env var holding its API name, and what feeds it. */
 function fieldSetting(env: string, label: string, description: string): Setting {
+  const fallback = FIELD_DEFAULT_NAMES[env];
   return {
     env,
     label,
-    description: `${description} API name of the field on the configuration object, namespace included.`,
+    description: `${description} API name of the field on the configuration object, namespace included. Empty: {{namespace}}__${fallback}.`,
     type: 'string',
     default: '',
     group: CONFIG_RECORD,
     validate: apiNameOrEmpty,
-    placeholder: 'ns__Field__c',
+    placeholder: `{{namespace}}__${fallback}`,
   };
 }
 
@@ -97,6 +119,21 @@ export const BYOC_SETTINGS: Setting[] = [
 
   /* ------------------------------------------------------------------------- Vendor package */
   {
+    env: 'BYOC_NAMESPACE',
+    label: 'Package namespace',
+    description:
+      'Namespace prefix of the package, without the trailing "__". Required. Any configuration record field left empty falls back to {{namespace}}__<default name>.',
+    type: 'string',
+    default: '',
+    group: PACKAGE,
+    validate: (value) =>
+      nonEmpty(value) ??
+      (/^[A-Za-z][A-Za-z0-9]*(_[A-Za-z0-9]+)*$/.test(value.trim())
+        ? undefined
+        : 'Letters, digits and single underscores only, without the trailing "__".'),
+    placeholder: 'ns',
+  },
+  {
     env: 'BYOC_CHANNEL_MATCH',
     label: 'Channel vendor match',
     description:
@@ -119,12 +156,13 @@ export const BYOC_SETTINGS: Setting[] = [
   {
     env: 'BYOC_CONFIG_OBJECT',
     label: 'Configuration object',
-    description: 'API name of the package configuration object, namespace included.',
+    description:
+      'API name of the package configuration object. Requires the namespace: {{namespace}}__ObjectApiName. No default, because the object name differs per vendor package.',
     type: 'string',
     default: '',
     group: PACKAGE,
     validate: apiNameOrEmpty,
-    placeholder: 'ns__Configuration__c',
+    placeholder: '{{namespace}}__ObjectApiName__c',
   },
   {
     env: 'BYOC_CONFIG_LABEL',

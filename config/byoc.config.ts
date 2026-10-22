@@ -6,6 +6,7 @@
  */
 
 import { SETTINGS_BY_ENV } from './settings-schema.js';
+import { FIELD_DEFAULT_NAMES } from './byoc-settings.js';
 
 function env(name: string): string {
   const value = process.env[name];
@@ -86,6 +87,13 @@ export type ConfigField =
   | 'receiptsRequested';
 
 export function byocConfig(): ByocConfig {
+  const namespace = env('BYOC_NAMESPACE');
+  // An empty field setting falls back to the default name under the package namespace.
+  const field = (name: string): string => {
+    const value = env(name);
+    if (value !== '' || namespace === '') return value;
+    return `${namespace}__${FIELD_DEFAULT_NAMES[name]}`;
+  };
   const labelled = (name: string) => ({ label: env(name), developerName: toApiName(env(name)) });
   return {
     queue: labelled('BYOC_QUEUE_LABEL'),
@@ -98,20 +106,20 @@ export function byocConfig(): ByocConfig {
       object: env('BYOC_CONFIG_OBJECT'),
       label: env('BYOC_CONFIG_LABEL'),
       fields: {
-        platformKey: env('BYOC_F_PLATFORM_KEY'),
-        label: env('BYOC_F_LABEL'),
-        clientId: env('BYOC_F_CLIENT_ID'),
-        certificateName: env('BYOC_F_CERT_NAME'),
-        tenant: env('BYOC_F_TENANT'),
-        serviceId: env('BYOC_F_SERVICE_ID'),
-        serviceSecret: env('BYOC_F_SERVICE_SECRET'),
-        endChatEventId: env('BYOC_F_END_CHAT_EVENT'),
-        participantChangedEventId: env('BYOC_F_PARTICIPANT_EVENT'),
-        mtlsEnabled: env('BYOC_F_MTLS_ENABLED'),
-        mtlsSubdomain: env('BYOC_F_MTLS_SUBDOMAIN'),
-        mtlsCertificateName: env('BYOC_F_MTLS_CERT'),
-        receiptsAuthId: env('BYOC_F_RECEIPTS_AUTH'),
-        receiptsRequested: env('BYOC_F_RECEIPTS_REQUESTED'),
+        platformKey: field('BYOC_F_PLATFORM_KEY'),
+        label: field('BYOC_F_LABEL'),
+        clientId: field('BYOC_F_CLIENT_ID'),
+        certificateName: field('BYOC_F_CERT_NAME'),
+        tenant: field('BYOC_F_TENANT'),
+        serviceId: field('BYOC_F_SERVICE_ID'),
+        serviceSecret: field('BYOC_F_SERVICE_SECRET'),
+        endChatEventId: field('BYOC_F_END_CHAT_EVENT'),
+        participantChangedEventId: field('BYOC_F_PARTICIPANT_EVENT'),
+        mtlsEnabled: field('BYOC_F_MTLS_ENABLED'),
+        mtlsSubdomain: field('BYOC_F_MTLS_SUBDOMAIN'),
+        mtlsCertificateName: field('BYOC_F_MTLS_CERT'),
+        receiptsAuthId: field('BYOC_F_RECEIPTS_AUTH'),
+        receiptsRequested: field('BYOC_F_RECEIPTS_REQUESTED'),
       },
     },
     externalApiHostPattern: env('BYOC_EXT_API_HOST_PATTERN'),

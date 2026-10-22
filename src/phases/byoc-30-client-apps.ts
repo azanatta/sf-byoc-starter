@@ -56,6 +56,23 @@ export const byocClientAppsPhase: Phase = {
       );
     }
 
+    const admin = await queryFirst<{ Email: string; ProfileId: string }>(
+      ctx,
+      `SELECT Email, ProfileId FROM User WHERE Username = ${soqlString(org.username)}`,
+    );
+    if (!admin) throw new Error(`Could not find the running user ${org.username}.`);
+
+    // Both apps already exist with known credentials: keep them, so the external system needs no change.
+    if (inboundExists && interactionExists) {
+      ctx.log.skip(`External client apps "${inbound}" and "${interaction}" exist`);
+      await preAuthorize(ctx, interaction, admin.ProfileId);
+      await verifyClientCredentials(ctx, state.inboundConsumerKey!, state.inboundConsumerSecret!);
+      await verifyJwtBearer(ctx, state.interactionConsumerKey!);
+      ctx.facts['Inbound app'] = inbound;
+      ctx.facts['Interaction API app'] = interaction;
+      return;
+    }
+
     // Saved BEFORE the deploy: a secret lost after a successful deploy is unrecoverable.
     state = updateState(orgId, {
       inboundConsumerKey: state.inboundConsumerKey ?? newConsumerKey(),
@@ -63,11 +80,6 @@ export const byocClientAppsPhase: Phase = {
       interactionConsumerKey: state.interactionConsumerKey ?? newConsumerKey(),
     });
 
-    const admin = await queryFirst<{ Email: string; ProfileId: string }>(
-      ctx,
-      `SELECT Email, ProfileId FROM User WHERE Username = ${soqlString(org.username)}`,
-    );
-    if (!admin) throw new Error(`Could not find the running user ${org.username}.`);
     const certificate = await certificatePem(ctx);
 
     const write = freshDir(SOURCE);

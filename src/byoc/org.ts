@@ -48,6 +48,19 @@ function valuesArg(values: Record<string, string | number | boolean>): string {
     .join(' ');
 }
 
+/** API names of the fields on an object, as the org describes them. */
+export async function fieldNames(ctx: PhaseContext, sobject: string): Promise<Set<string>> {
+  const result = await sf<{ fields: Array<{ name: string }> }>([
+    'sobject',
+    'describe',
+    '--target-org',
+    requireOrg(ctx).username,
+    '--sobject',
+    sobject,
+  ]);
+  return new Set(result.fields.map((field) => field.name.toLowerCase()));
+}
+
 export async function createRecord(
   ctx: PhaseContext,
   sobject: string,

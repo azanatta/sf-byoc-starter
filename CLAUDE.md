@@ -42,6 +42,7 @@ npm run configure            # config UI on 127.0.0.1:4747 — the normal way to
 npm run setup                # stage 1 from the terminal (needs the env loaded, see below)
 npm run connect -- --org=<alias>   # stage 2: configuration record + connection test
 npm run setup -- --list      # phases
+npm run setup -- --org=<alias>   # re-run stage 1 in an existing org (creation skipped; channel and client apps kept)
 npm run setup -- --org=<alias> --only=<phase>[,<phase>]   # re-run phases against an existing org
 npm run setup -- --delete    # delete the scratch org behind the configured alias
 npm run typecheck

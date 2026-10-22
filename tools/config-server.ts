@@ -502,7 +502,10 @@ const server = createServer(async (request, response) => {
       const alias = (values['SCV_ORG_ALIAS'] ?? '').trim();
       if (!args.some((arg) => arg.startsWith('--org=') || arg.startsWith('--only=')) && orgExists(alias)) {
         sendJson(response, 400, {
-          errors: { SCV_ORG_ALIAS: `An org named "${alias}" already exists. Choose a different name.` },
+          errors: {
+            SCV_ORG_ALIAS: `An org named "${alias}" already exists. Choose a different name, or re-run the setup in it.`,
+          },
+          existingOrg: alias,
         });
         return;
       }

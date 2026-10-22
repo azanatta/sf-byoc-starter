@@ -7,7 +7,8 @@
  *   npm run setup -- --headed              Run with a visible browser (selector debugging)
  *   npm run setup -- --only=enable-voice   Run one phase (repeatable, comma-separated)
  *   npm run setup -- --skip=install-package
- *   npm run setup -- --org=my-existing-org Operate on an existing org, skipping creation
+ *   npm run setup -- --org=my-existing-org Re-run the setup in an existing org (creation is skipped;
+ *                                          the channel and client apps are kept as they are)
  *   npm run setup -- --no-reuse            Force a brand new scratch org
  *   npm run setup -- --delete              Delete the configured scratch org and exit
  *   npm run setup -- --list                List phases and exit
@@ -131,6 +132,9 @@ function parseArgs(argv: string[]): CliOptions {
       process.exit(2);
     }
   }
+
+  // An existing org is never re-created: the setup re-runs in it, keeping what is already there.
+  if (options.orgOverride) options.skip.add(byocCreateOrgPhase.id);
 
   // The two stages never run together: the second needs values the user supplies in between.
   if (connect) for (const phase of CONNECT_PHASES) options.only.add(phase.id);

@@ -68,6 +68,7 @@ must never reach a tracked file.
 npx tsx --env-file=.env src/cli.ts                    # step 1
 npx tsx --env-file=.env src/cli.ts --connect --org=<alias or username>   # step 4
 npx tsx --env-file=.env src/cli.ts --list             # phases
+npx tsx --env-file=.env src/cli.ts --org=<alias>   # re-run the setup in an existing org (keeps channel and client apps)
 npx tsx --env-file=.env src/cli.ts --org=<alias> --only=<phase>   # re-run one phase
 npx tsx --env-file=.env src/cli.ts --headed …         # visible browser
 npm run setup -- --delete                             # delete the org behind the configured alias

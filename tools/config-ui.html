@@ -130,6 +130,7 @@
         <form id="formSetup"></form>
         <div class="actions" style="margin:4px 0 0">
           <button class="primary" id="run">Set up the org</button>
+          <button id="rerun" hidden title="Keeps the messaging channel and the client apps, so the external system needs no change.">Re-run in the existing org</button>
           <button id="save">Save settings</button>
         </div>
       </div>
@@ -471,8 +472,12 @@ async function run(args) {
     const body = await response.json();
     showErrors(body.errors);
     banner('runBanner', 'err', body.error || Object.values(body.errors || {})[0] || 'Could not start the run.');
+    const rerun = document.getElementById('rerun');
+    rerun.hidden = !body.existingOrg;
+    rerun.dataset.org = body.existingOrg || '';
     return;
   }
+  document.getElementById('rerun').hidden = true;
   // From here the previous org's values must not be copied by mistake: steps 2 to 4 lock.
   RUNNING = 'setup';
   renderSteps();
@@ -519,6 +524,10 @@ document.getElementById('save').addEventListener('click', e => { e.preventDefaul
 document.getElementById('run').addEventListener('click', e => {
   e.preventDefault();
   run([]);
+});
+document.getElementById('rerun').addEventListener('click', e => {
+  e.preventDefault();
+  run(['--org=' + e.target.dataset.org]);
 });
 document.getElementById('connect').addEventListener('click', e => { e.preventDefault(); connect(); });
 for (const button of document.querySelectorAll('[data-copy]')) {
@@ -578,6 +587,7 @@ const events = new EventSource('/api/stream');
 events.addEventListener('started', () => {
   banner('runBanner', '', '');
   document.getElementById('run').disabled = true;
+  document.getElementById('rerun').disabled = true;
   document.getElementById('connect').disabled = true;
   document.getElementById('stop').disabled = false;
 });
@@ -594,6 +604,7 @@ events.addEventListener('finished', e => {
     if (code === 0 && finished === 'setup') document.getElementById('step2').scrollIntoView({ behavior: 'smooth' });
   });
   updateRunButton();
+  document.getElementById('rerun').disabled = false;
   document.getElementById('connect').disabled = false;
   document.getElementById('stop').disabled = true;
 });

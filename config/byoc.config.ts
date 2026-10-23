@@ -87,8 +87,8 @@ export type ConfigField =
 
 export function byocConfig(): ByocConfig {
   const namespace = env('BYOC_NAMESPACE');
-  // Field settings hold the name without namespace; the package namespace goes in front.
-  const field = (name: string): string => (namespace === '' ? '' : `${namespace}__${env(name)}`);
+  // Object and field settings hold the name without namespace; the package namespace goes in front.
+  const field = (name: string): string => (namespace === '' || env(name) === '' ? '' : `${namespace}__${env(name)}`);
   const labelled = (name: string) => ({ label: env(name), developerName: toApiName(env(name)) });
   return {
     queue: labelled('BYOC_QUEUE_LABEL'),
@@ -98,7 +98,7 @@ export function byocConfig(): ByocConfig {
     interactionApp: labelled('BYOC_INTERACTION_APP_LABEL'),
     packagePermissionSets: envList('BYOC_PACKAGE_PERMISSION_SETS'),
     configRecord: {
-      object: env('BYOC_CONFIG_OBJECT'),
+      object: field('BYOC_CONFIG_OBJECT'),
       label: env('BYOC_CONFIG_LABEL'),
       fields: {
         platformKey: field('BYOC_F_PLATFORM_KEY'),

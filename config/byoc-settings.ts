@@ -17,13 +17,6 @@ const CONFIG_RECORD = 'Messaging: configuration record fields';
 const WIDGET = 'Messaging: chat widget';
 const EXTERNAL = 'External system (fill in after the hand-off)';
 
-function apiNameOrEmpty(value: string): string | undefined {
-  if (value.trim() === '') return undefined;
-  return /^[A-Za-z][A-Za-z0-9_]*$/.test(value.trim())
-    ? undefined
-    : 'Letters, digits and underscores only, and it cannot start with a digit.';
-}
-
 function nonEmpty(value: string): string | undefined {
   return value.trim() === '' ? 'Required.' : undefined;
 }
@@ -52,11 +45,11 @@ export const FIELD_DEFAULT_NAMES: Record<string, string> = {
   BYOC_F_RECEIPTS_REQUESTED: 'Webex_Receipts_Request__c',
 };
 
-/** A field API name without namespace: `Field__c`, never `ns__Field__c`. */
-function fieldNameWithoutNamespace(value: string): string | undefined {
+/** A custom field or object API name without namespace: `Name__c`, never `ns__Name__c`. */
+function apiNameWithoutNamespace(value: string): string | undefined {
   const name = value.trim();
   if (name === '') return undefined;
-  if (!/^[A-Za-z][A-Za-z0-9_]*__c$/.test(name)) return 'A custom field API name ending in __c.';
+  if (!/^[A-Za-z][A-Za-z0-9_]*__c$/.test(name)) return 'A custom API name ending in __c.';
   if (name.slice(0, -3).includes('__')) return 'Without the namespace: the package namespace is added automatically.';
   return undefined;
 }
@@ -71,7 +64,7 @@ function fieldSetting(env: string, label: string, description: string): Setting 
     type: 'string',
     default: name,
     group: CONFIG_RECORD,
-    validate: fieldNameWithoutNamespace,
+    validate: apiNameWithoutNamespace,
     placeholder: name,
   };
 }
@@ -166,12 +159,12 @@ export const BYOC_SETTINGS: Setting[] = [
     env: 'BYOC_CONFIG_OBJECT',
     label: 'Configuration object',
     description:
-      'API name of the package configuration object. Requires the namespace: {{namespace}}__ObjectApiName. No default, because the object name differs per vendor package.',
+      'API name of the package configuration object, WITHOUT the namespace: it is used as {{namespace}}__<name>. No default, because the object name differs per vendor package.',
     type: 'string',
     default: '',
     group: PACKAGE,
-    validate: apiNameOrEmpty,
-    placeholder: '{{namespace}}__ObjectApiName__c',
+    validate: apiNameWithoutNamespace,
+    placeholder: 'ObjectApiName__c',
   },
   {
     env: 'BYOC_CONFIG_LABEL',

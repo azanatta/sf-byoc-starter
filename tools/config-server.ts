@@ -21,7 +21,7 @@
  * ============================================================================================
  */
 
-import { spawn, spawnSync, type ChildProcess } from 'node:child_process';
+import { execFile, spawn, spawnSync, type ChildProcess } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import { dirname, resolve } from 'node:path';
@@ -173,7 +173,43 @@ function writeProfiles(profiles: Profiles): void {
  * These are the ones worth catching before a six-minute run: a vendor XML that is not there, and an
  * internal name that disagrees with the file about to be imported.
  */
-function environmentChecks(values: Record<string, string>): Record<string, string> {
+/**
+ * Dev Hub check results by alias. `sf org display` takes many seconds and runs on every validation,
+ * so it is cached briefly and run asynchronously: a blocking call stalls every other request,
+ * including saves, for as long as it runs.
+ */
+const DEVHUB_CHECK_TTL_MS = 5 * 60_000;
+const devHubChecks = new Map<string, { at: number; problem: Promise<string | undefined> }>();
+
+function devHubProblem(devHub: string): Promise<string | undefined> {
+  const cached = devHubChecks.get(devHub);
+  if (cached && Date.now() - cached.at < DEVHUB_CHECK_TTL_MS) return cached.problem;
+  const problem = new Promise<string | undefined>((done) => {
+    execFile(
+      'sf',
+      ['org', 'display', '--target-org', devHub, '--json'],
+      { encoding: 'utf8', env: { ...process.env, FORCE_COLOR: '0', NO_COLOR: '1' } },
+      (error, stdout) => {
+        // CAUTION: a non-zero exit is NOT the failure signal here. `sf org display` exits 0 for an org
+        // whose refresh token has expired and reports the problem only in `result.connectedStatus`
+        // ("Unable to refresh session due to: ..."). Checking the exit code alone silently passes exactly
+        // the case this check exists to catch.
+        if (error) return done('not authenticated');
+        try {
+          const parsed = JSON.parse(stdout) as { result?: { connectedStatus?: string } };
+          const status = parsed.result?.connectedStatus;
+          done(status && status !== 'Connected' ? status : undefined);
+        } catch {
+          done('could not read the CLI response');
+        }
+      },
+    );
+  });
+  devHubChecks.set(devHub, { at: Date.now(), problem });
+  return problem;
+}
+
+async function environmentChecks(values: Record<string, string>): Promise<Record<string, string>> {
   const warnings: Record<string, string> = {};
 
   // The single most common way a run dies at second zero: an unauthenticated Dev Hub, or one whose
@@ -181,31 +217,10 @@ function environmentChecks(values: Record<string, string>): Record<string, strin
   // actually resolve it.
   const devHub = (values['SCV_DEVHUB_ALIAS'] ?? '').trim();
   if (devHub !== '') {
-    const check = spawnSync('sf', ['org', 'display', '--target-org', devHub, '--json'], {
-      encoding: 'utf8',
-      env: { ...process.env, FORCE_COLOR: '0', NO_COLOR: '1' },
-    });
-
-    // CAUTION: a non-zero exit is NOT the failure signal here. `sf org display` exits 0 for an org
-    // whose refresh token has expired and reports the problem only in `result.connectedStatus`
-    // ("Unable to refresh session due to: ..."). Checking the exit code alone silently passes exactly
-    // the case this check exists to catch.
-    let problem: string | undefined;
-    if (check.status !== 0) {
-      problem = 'not authenticated';
-    } else {
-      try {
-        const parsed = JSON.parse(check.stdout) as {
-          result?: { connectedStatus?: string };
-        };
-        const status = parsed.result?.connectedStatus;
-        if (status && status !== 'Connected') problem = status;
-      } catch {
-        problem = 'could not read the CLI response';
-      }
-    }
-
+    const problem = await devHubProblem(devHub);
     if (problem) {
+      // Not cached as a failure: the next check after re-authenticating must see the fix.
+      devHubChecks.delete(devHub);
       warnings['SCV_DEVHUB_ALIAS'] =
         `${problem}. Re-authenticate with: sf org login web --set-default-dev-hub --alias ${devHub}`;
     }
@@ -365,7 +380,7 @@ const server = createServer(async (request, response) => {
       const values = (body['values'] ?? {}) as Record<string, string>;
       sendJson(response, 200, {
         errors: validateAll(values),
-        warnings: environmentChecks(values),
+        warnings: await environmentChecks(values),
       });
       return;
     }
@@ -394,14 +409,13 @@ const server = createServer(async (request, response) => {
       // Secrets are deliberately NOT stored in a profile: profiles are meant to be shareable and
       // committable, and an installation key in a JSON file is exactly the kind of thing that leaks.
       // They are kept in `.env` instead, so saving a profile does not lose what was typed.
+      // The form is also saved as the current settings, so reloading the page shows what was saved.
       const safe: Record<string, string> = {};
       const env: Record<string, string> = {};
       const existing = readEnvFile();
       for (const setting of SETTINGS) {
-        env[setting.env] = existing[setting.env] ?? setting.default;
-        if (values[setting.env] === undefined) continue;
-        if (setting.secret) env[setting.env] = values[setting.env] as string;
-        else safe[setting.env] = values[setting.env] as string;
+        env[setting.env] = values[setting.env] ?? existing[setting.env] ?? setting.default;
+        if (values[setting.env] !== undefined && !setting.secret) safe[setting.env] = values[setting.env] as string;
       }
       writeEnvFile(env);
       const profiles = readProfiles();

@@ -545,14 +545,15 @@ document.getElementById('saveProfile').addEventListener('click', async e => {
   // No name typed: save over the profile that is loaded.
   const name = document.getElementById('profileName').value.trim() || loadedProfile();
   if (!name) { banner('formBanner', 'err', 'Give the profile a name, or load one first.'); return; }
-  await fetch('/api/profiles/save', {
+  const response = await fetch('/api/profiles/save', {
     method: 'POST', headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ name, values: formValues() })
   });
+  if (!response.ok) { banner('formBanner', 'err', (await response.json()).error || 'Could not save the profile.'); return; }
   document.getElementById('profileName').value = '';
   setLoadedProfile(name);
+  banner('formBanner', 'ok', 'Saved profile "' + name + '" and the current settings. Secrets are kept in .env, not in the profile.');
   await loadState();
-  banner('formBanner', 'ok', 'Saved profile "' + name + '". Secrets are kept in .env, not in the profile.');
 });
 
 document.getElementById('loadProfile').addEventListener('click', async e => {
@@ -566,9 +567,9 @@ document.getElementById('loadProfile').addEventListener('click', async e => {
   renderForm();
   renderSteps();
   updateRunButton();
-  await validate();
   setLoadedProfile(name);
   banner('formBanner', 'ok', 'Loaded profile "' + name + '".');
+  await validate();
 });
 
 document.getElementById('deleteProfile').addEventListener('click', async e => {

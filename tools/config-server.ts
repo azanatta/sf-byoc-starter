@@ -46,7 +46,17 @@ const HIDDEN_GROUPS = new Set([
   'Contact center',
   'Console app',
 ]);
-const HIDDEN_SETTINGS = new Set(['SCV_REUSE_ORG', 'SCV_VOICE_FEATURES', 'SCV_ORG_EDITION']);
+const HIDDEN_SETTINGS = new Set([
+  'SCV_REUSE_ORG',
+  'SCV_VOICE_FEATURES',
+  'SCV_ORG_EDITION',
+  // Same chat widget for every connector: fixed defaults (config/byoc-settings.ts), not asked for.
+  'BYOC_WIDGET_LAUNCHER',
+  'BYOC_WIDGET_START',
+  'BYOC_WIDGET_INPUT',
+  'BYOC_WIDGET_SEND',
+  'BYOC_E2E_TIMEOUT_SECONDS',
+]);
 const SETTINGS = ALL_SETTINGS.filter(
   (setting) => !HIDDEN_GROUPS.has(setting.group) && !HIDDEN_SETTINGS.has(setting.env),
 );

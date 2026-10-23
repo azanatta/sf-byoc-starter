@@ -206,6 +206,8 @@ export const BYOC_SETTINGS: Setting[] = [
   },
 
   /* ---------------------------------------------------------------------------- Chat widget */
+  // The chat widget is the same for every connector, so its selectors and the timeout are fixed
+  // defaults, hidden in the config UI. They can still be overridden in .env.
   {
     env: 'BYOC_WIDGET_FILE',
     label: 'Widget markup file',
@@ -221,7 +223,7 @@ export const BYOC_SETTINGS: Setting[] = [
     description:
       'Selector for the control that opens the chat. Looked up in every frame of the page. Leave empty if the chat opens by itself.',
     type: 'string',
-    default: '',
+    default: '#widgetlbtn',
     group: WIDGET,
   },
   {
@@ -229,7 +231,7 @@ export const BYOC_SETTINGS: Setting[] = [
     label: 'Start-conversation selector',
     description: 'Optional control to click after the launcher and before typing, e.g. a "new conversation" button. Skipped when not visible.',
     type: 'string',
-    default: '',
+    default: '#start-chat',
     group: WIDGET,
   },
   {
@@ -237,7 +239,7 @@ export const BYOC_SETTINGS: Setting[] = [
     label: 'Message input selector',
     description: 'Selector for the message box. Looked up in every frame of the page.',
     type: 'string',
-    default: '',
+    default: '#icwmsg',
     group: WIDGET,
   },
   {
@@ -245,7 +247,7 @@ export const BYOC_SETTINGS: Setting[] = [
     label: 'Send selector',
     description: 'Selector for the send control. Leave empty to press Enter.',
     type: 'string',
-    default: '',
+    default: '#aSend',
     group: WIDGET,
   },
   {

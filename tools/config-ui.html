@@ -71,6 +71,10 @@
   .banner { padding: 9px 12px; border-radius: 6px; margin-bottom: 12px; font-size: 13px; display: none; }
   .banner.ok { background: color-mix(in srgb, var(--ok) 14%, transparent); color: var(--ok); display: block; }
   .banner.err { background: color-mix(in srgb, var(--err) 14%, transparent); color: var(--err); display: block; }
+  #toasts { position: fixed; bottom: 16px; right: 16px; z-index: 10; display: flex; flex-direction: column; gap: 8px; max-width: min(420px, calc(100vw - 32px)); }
+  .toast { padding: 10px 14px; border-radius: 6px; font-size: 13px; cursor: pointer; background: var(--bg);
+    border: 1px solid var(--border); border-left: 4px solid var(--ok); box-shadow: 0 4px 14px rgba(0,0,0,.18); }
+  .toast.err { border-left-color: var(--err); color: var(--err); }
   .profiles { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; margin-left: auto; }
   .profiles select, .profiles input { width: auto; min-width: 130px; }
   textarea {
@@ -106,6 +110,7 @@
 </style>
 </head>
 <body>
+<div id="toasts" role="status" aria-live="polite"></div>
 <header>
   <h1>Partner Messaging — org setup</h1>
   <span class="path" id="envpath"></span>
@@ -422,7 +427,26 @@ function banner(id, kind, text) {
   el.className = 'banner ' + kind;
   el.textContent = text;
   if (!text) el.className = 'banner';
+  // The banners sit at the top of their pane and are easy to miss when scrolled; echo them.
+  if (text && (kind === 'ok' || kind === 'err')) toast(kind, text);
 }
+
+/** A short notice in the corner. Errors stay longer; a click dismisses either. */
+function toast(kind, text) {
+  const el = document.createElement('div');
+  el.className = 'toast ' + kind;
+  el.textContent = text;
+  el.addEventListener('click', () => el.remove());
+  document.getElementById('toasts').appendChild(el);
+  setTimeout(() => el.remove(), kind === 'err' ? 12000 : 4000);
+}
+
+// Anything that goes wrong in the page itself, including a config server that stopped.
+window.addEventListener('error', e => toast('err', 'Error: ' + e.message));
+window.addEventListener('unhandledrejection', e => {
+  const reason = e.reason instanceof Error ? e.reason.message : String(e.reason);
+  toast('err', /fetch/i.test(reason) ? 'Cannot reach the config server. Is npm run configure still running?' : 'Error: ' + reason);
+});
 
 /** Classifies a log line so the run reads at a glance, mirroring the CLI's own symbols. */
 function lineClass(line) {
@@ -559,7 +583,7 @@ document.getElementById('saveProfile').addEventListener('click', async e => {
 document.getElementById('loadProfile').addEventListener('click', async e => {
   e.preventDefault();
   const name = document.getElementById('profileSelect').value;
-  if (!name) return;
+  if (!name) { banner('formBanner', 'err', 'Choose a profile to load.'); return; }
   const response = await fetch('/api/profiles/load?name=' + encodeURIComponent(name));
   const body = await response.json();
   if (!response.ok) { banner('formBanner', 'err', body.error); return; }
@@ -575,11 +599,13 @@ document.getElementById('loadProfile').addEventListener('click', async e => {
 document.getElementById('deleteProfile').addEventListener('click', async e => {
   e.preventDefault();
   const name = document.getElementById('profileSelect').value;
-  if (!name) return;
-  await fetch('/api/profiles/delete', {
+  if (!name) { banner('formBanner', 'err', 'Choose a profile to delete.'); return; }
+  const response = await fetch('/api/profiles/delete', {
     method: 'POST', headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ name })
   });
+  if (!response.ok) { banner('formBanner', 'err', 'Could not delete profile "' + name + '".'); return; }
+  banner('formBanner', 'ok', 'Deleted profile "' + name + '".');
   await loadState();
 });
 

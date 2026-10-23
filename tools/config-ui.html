@@ -180,7 +180,10 @@
   <section class="pane right">
     <div class="actions">
       <strong id="runTitle">Progress</strong>
-      <button id="stop" disabled style="margin-left:auto">Stop</button>
+      <span style="margin-left:auto; display:flex; gap:8px">
+        <button id="resume" hidden>Re-run from the failed step</button>
+        <button id="stop" disabled>Stop</button>
+      </span>
     </div>
     <div class="banner" id="runBanner"></div>
     <div id="log">Output appears here.</div>
@@ -459,7 +462,48 @@ function lineClass(line) {
   return '';
 }
 
+/** Where the last run failed, read from the CLI summary, so only that step onwards is re-run. */
+let FAILED_AT = null;
+const CONNECT_PHASE_IDS = ['byoc-remote-site', 'byoc-config-record', 'byoc-e2e'];
+
+function noteFailure(line) {
+  const phase = line.match(/FAILED in phase "([^"]+)"/);
+  if (phase) FAILED_AT = { phase: phase[1], org: null };
+  const org = line.match(/Re-run just this phase:.*--org=(\S+)/);
+  if (org && FAILED_AT) FAILED_AT.org = org[1];
+}
+
+function showResume() {
+  const button = document.getElementById('resume');
+  // Without an org there is nothing to resume: the setup has to start with a new one.
+  const usable = FAILED_AT && FAILED_AT.org && RUNNING === null;
+  button.hidden = !usable;
+  if (usable) button.textContent = 'Re-run from "' + FAILED_AT.phase + '"';
+}
+
+async function resume() {
+  if (!FAILED_AT || !FAILED_AT.org) return;
+  const { phase, org } = FAILED_AT;
+  document.getElementById('log').innerHTML = '';
+  banner('runBanner', '', '');
+  const response = await fetch('/api/run', {
+    method: 'POST', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ values: formValues(), args: ['--org=' + org, '--from=' + phase] })
+  });
+  if (!response.ok) {
+    const body = await response.json();
+    showErrors(body.errors);
+    banner('runBanner', 'err', body.error || Object.values(body.errors || {})[0] || 'Could not start the run.');
+    return;
+  }
+  FAILED_AT = null;
+  RUNNING = CONNECT_PHASE_IDS.includes(phase) ? 'connect' : 'setup';
+  showResume();
+  renderSteps();
+}
+
 function appendLog(line) {
+  noteFailure(line);
   const log = document.getElementById('log');
   const div = document.createElement('div');
   div.className = lineClass(line);
@@ -549,6 +593,7 @@ document.getElementById('run').addEventListener('click', e => {
   e.preventDefault();
   run([]);
 });
+document.getElementById('resume').addEventListener('click', e => { e.preventDefault(); resume(); });
 document.getElementById('rerun').addEventListener('click', e => {
   e.preventDefault();
   run(['--org=' + e.target.dataset.org]);
@@ -617,6 +662,8 @@ events.addEventListener('started', () => {
   document.getElementById('rerun').disabled = true;
   document.getElementById('connect').disabled = true;
   document.getElementById('stop').disabled = false;
+  FAILED_AT = null;
+  document.getElementById('resume').hidden = true;
 });
 events.addEventListener('line', e => appendLog(JSON.parse(e.data).line));
 events.addEventListener('finished', e => {
@@ -634,6 +681,8 @@ events.addEventListener('finished', e => {
   document.getElementById('rerun').disabled = false;
   document.getElementById('connect').disabled = false;
   document.getElementById('stop').disabled = true;
+  if (code === 0) FAILED_AT = null;
+  showResume();
 });
 
 loadState().then(loadHandoff);

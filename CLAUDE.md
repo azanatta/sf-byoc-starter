@@ -44,6 +44,7 @@ npm run connect -- --org=<alias>   # stage 2: configuration record + connection 
 npm run setup -- --list      # phases
 npm run setup -- --org=<alias>   # re-run stage 1 in an existing org (creation skipped; channel and client apps kept)
 npm run setup -- --org=<alias> --only=<phase>[,<phase>]   # re-run phases against an existing org
+npm run setup -- --org=<alias> --from=<phase>   # re-run a failed phase and the rest of its stage
 npm run setup -- --delete    # delete the scratch org behind the configured alias
 npm run typecheck
 ```

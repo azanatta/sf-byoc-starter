@@ -70,6 +70,7 @@ npx tsx --env-file=.env src/cli.ts --connect --org=<alias or username>   # step 
 npx tsx --env-file=.env src/cli.ts --list             # phases
 npx tsx --env-file=.env src/cli.ts --org=<alias>   # re-run the setup in an existing org (keeps channel and client apps)
 npx tsx --env-file=.env src/cli.ts --org=<alias> --only=<phase>   # re-run one phase
+npx tsx --env-file=.env src/cli.ts --org=<alias> --from=<phase>   # re-run a failed phase and the rest of its stage
 npx tsx --env-file=.env src/cli.ts --headed …         # visible browser
 npm run setup -- --delete                             # delete the org behind the configured alias
 npm run typecheck

@@ -7,6 +7,7 @@
  *   npm run setup -- --headed              Run with a visible browser (selector debugging)
  *   npm run setup -- --only=enable-voice   Run one phase (repeatable, comma-separated)
  *   npm run setup -- --skip=install-package
+ *   npm run setup -- --org=<alias> --from=byoc-e2e   Re-run a failed phase and the rest of its stage
  *   npm run setup -- --org=my-existing-org Re-run the setup in an existing org (creation is skipped;
  *                                          the channel and client apps are kept as they are)
  *   npm run setup -- --no-reuse            Force a brand new scratch org
@@ -116,6 +117,7 @@ function parseArgs(argv: string[]): CliOptions {
   };
 
   let connect = false;
+  let from: string | undefined;
   for (const arg of argv) {
     if (arg === '--headed') options.headed = true;
     else if (arg === '--no-reuse') options.noReuse = true;
@@ -126,6 +128,8 @@ function parseArgs(argv: string[]): CliOptions {
       for (const id of arg.slice('--only='.length).split(',')) options.only.add(id.trim());
     } else if (arg.startsWith('--skip=')) {
       for (const id of arg.slice('--skip='.length).split(',')) options.skip.add(id.trim());
+    } else if (arg.startsWith('--from=')) {
+      from = arg.slice('--from='.length).trim();
     } else if (arg.startsWith('--org=')) {
       options.orgOverride = arg.slice('--org='.length).trim();
     } else {
@@ -136,6 +140,17 @@ function parseArgs(argv: string[]): CliOptions {
 
   // An existing org is never re-created: the setup re-runs in it, keeping what is already there.
   if (options.orgOverride) options.skip.add(byocCreateOrgPhase.id);
+
+  // A phase and the rest of its stage: what to re-run after a failure, without starting over.
+  if (from !== undefined) {
+    const stage = CONNECT_PHASES.some((phase) => phase.id === from) ? CONNECT_PHASES : PHASES.filter((phase) => !CONNECT_PHASES.includes(phase));
+    const start = stage.findIndex((phase) => phase.id === from);
+    if (start === -1) {
+      console.error(`Unknown phase "${from}". Known phases: ${PHASES.map((phase) => phase.id).join(', ')}`);
+      process.exit(2);
+    }
+    for (const phase of stage.slice(start)) options.only.add(phase.id);
+  }
 
   // The two stages never run together: the second needs values the user supplies in between.
   if (connect) for (const phase of CONNECT_PHASES) options.only.add(phase.id);
@@ -299,6 +314,7 @@ function printSummary(
     const orgHint = ctx.org ? ` --org=${ctx.org.username}` : '';
     const rerun = `npx tsx --env-file=.env src/cli.ts${orgHint} --only=${failed.phase.id}${headedHint}`;
     process.stdout.write(`\n${style.dim(`Re-run just this phase:  ${rerun}`)}\n`);
+    process.stdout.write(`${style.dim(`Re-run from this phase:  npx tsx --env-file=.env src/cli.ts${orgHint} --from=${failed.phase.id}${headedHint}`)}\n`);
   } else {
     process.stdout.write(`${style.green('SUCCESS')} in ${seconds}s\n`);
   }

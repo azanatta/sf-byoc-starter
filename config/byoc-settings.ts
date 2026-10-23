@@ -32,8 +32,8 @@ function nonEmpty(value: string): string | undefined {
 export const RECEIPT_STATUSES = ['SUBMITTED', 'DELIVERED', 'CLICKED', 'FAILED'];
 
 /**
- * Field API names without namespace, used when a field setting is left empty: the field then
- * resolves to `<namespace>__<name>`. Keyed by env var.
+ * Default field API names, without namespace. Every field setting holds a name in this form; the
+ * package namespace (BYOC_NAMESPACE) is put in front at run time. Keyed by env var.
  */
 export const FIELD_DEFAULT_NAMES: Record<string, string> = {
   BYOC_F_PLATFORM_KEY: 'Messaging_Channel_Platform_Key__c',
@@ -52,18 +52,27 @@ export const FIELD_DEFAULT_NAMES: Record<string, string> = {
   BYOC_F_RECEIPTS_REQUESTED: 'Webex_Receipts_Request__c',
 };
 
+/** A field API name without namespace: `Field__c`, never `ns__Field__c`. */
+function fieldNameWithoutNamespace(value: string): string | undefined {
+  const name = value.trim();
+  if (name === '') return undefined;
+  if (!/^[A-Za-z][A-Za-z0-9_]*__c$/.test(name)) return 'A custom field API name ending in __c.';
+  if (name.slice(0, -3).includes('__')) return 'Without the namespace: the package namespace is added automatically.';
+  return undefined;
+}
+
 /** One configuration-record field: the env var holding its API name, and what feeds it. */
 function fieldSetting(env: string, label: string, description: string): Setting {
-  const fallback = FIELD_DEFAULT_NAMES[env];
+  const name = FIELD_DEFAULT_NAMES[env]!;
   return {
     env,
     label,
-    description: `${description} API name of the field on the configuration object, namespace included. Empty: {{namespace}}__${fallback}.`,
+    description: `${description} API name of the field on the configuration object, WITHOUT the namespace: it is used as {{namespace}}__<name>.`,
     type: 'string',
-    default: '',
+    default: name,
     group: CONFIG_RECORD,
-    validate: apiNameOrEmpty,
-    placeholder: `{{namespace}}__${fallback}`,
+    validate: fieldNameWithoutNamespace,
+    placeholder: name,
   };
 }
 
@@ -122,7 +131,7 @@ export const BYOC_SETTINGS: Setting[] = [
     env: 'BYOC_NAMESPACE',
     label: 'Package namespace',
     description:
-      'Namespace prefix of the package, without the trailing "__". Required. Any configuration record field left empty falls back to {{namespace}}__<default name>.',
+      'Namespace prefix of the package, without the trailing "__". Required. It is put in front of every configuration record field name: {{namespace}}__<field>.',
     type: 'string',
     default: '',
     group: PACKAGE,

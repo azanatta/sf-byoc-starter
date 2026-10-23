@@ -33,7 +33,7 @@ export const byocConfigRecordPhase: Phase = {
     if (config.configRecord.object === '') throw new Error('No configuration object configured. Set BYOC_CONFIG_OBJECT.');
     const unmapped = REQUIRED_FIELDS.filter((field) => config.configRecord.fields[field] === '');
     if (unmapped.length > 0) {
-      throw new Error(`These configuration record fields have no API name configured: ${unmapped.join(', ')}. Set BYOC_NAMESPACE or the field settings.`);
+      throw new Error(`These configuration record fields have no API name configured: ${unmapped.join(', ')}. Set BYOC_NAMESPACE.`);
     }
 
     const external = config.external;

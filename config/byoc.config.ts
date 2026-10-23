@@ -6,7 +6,6 @@
  */
 
 import { SETTINGS_BY_ENV } from './settings-schema.js';
-import { FIELD_DEFAULT_NAMES } from './byoc-settings.js';
 
 function env(name: string): string {
   const value = process.env[name];
@@ -88,12 +87,8 @@ export type ConfigField =
 
 export function byocConfig(): ByocConfig {
   const namespace = env('BYOC_NAMESPACE');
-  // An empty field setting falls back to the default name under the package namespace.
-  const field = (name: string): string => {
-    const value = env(name);
-    if (value !== '' || namespace === '') return value;
-    return `${namespace}__${FIELD_DEFAULT_NAMES[name]}`;
-  };
+  // Field settings hold the name without namespace; the package namespace goes in front.
+  const field = (name: string): string => (namespace === '' ? '' : `${namespace}__${env(name)}`);
   const labelled = (name: string) => ({ label: env(name), developerName: toApiName(env(name)) });
   return {
     queue: labelled('BYOC_QUEUE_LABEL'),

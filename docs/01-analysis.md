@@ -198,7 +198,7 @@ Note for the connection test: on the tested widget, the "new conversation" contr
 2. Scratch org capacity: the Dev Hub allows 3 active orgs and every setup run creates one. A run refuses an alias that is already in use.
 4. The connection test covers customer → agent only. The agent → customer direction, which is what uses the external service id and secret, is not asserted.
 5. Each connection test leaves its accepted session open.
-6. Re-running single phases with `--only=` against an existing org: written to be idempotent, exercised only for `byoc-config-record`.
+6. Re-running against an existing org (`--org=`, `--from=`, `--only=`): written to be idempotent, exercised for the second stage (`byoc-remote-site`, `byoc-config-record`, `byoc-e2e`); a full first-stage re-run in an existing org is not yet exercised.
 
 ## Connection test: "no session" diagnosis (2026-10-13, first run against the external system)
 
@@ -243,3 +243,20 @@ external system called the package REST endpoint under the wrong namespace.
   box, checks the box content before sending and checks the sent bubble afterwards.
 - The external system requests a token for every conversation (two `LoginHistory` rows each), so
   "no token request during the test" reliably means it did not call the org at all.
+
+## Second package variant (2026-10-23)
+
+- Package variants differ in their configuration object and fields. One tested variant has a
+  different configuration object name and **no mTLS fields** at all (inserting
+  `<ns>__Webex_mTLS_Enabled__c` failed with "No such column"). So `byoc-config-record` describes
+  the object first and skips any configured field the org does not have; only the platform key
+  field is required, because the record is looked up by it.
+- The namespace differs per variant. Object and field settings are entered without it and
+  `BYOC_NAMESPACE` is put in front, so one setting changes all of them.
+- The external system's flow must call the package REST endpoint under the same namespace. A wrong
+  one gives 404 and nothing in the org (see the "no session" diagnosis above); it was the cause
+  here too.
+- The remote site is now its own phase (`byoc-remote-site`) ahead of the record, so a record
+  failure does not leave the org without it.
+- With these, the connection test passed against this variant (`--org=… --only=byoc-e2e` on the
+  existing org, after re-running the stage there).

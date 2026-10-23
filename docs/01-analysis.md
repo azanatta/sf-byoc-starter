@@ -259,4 +259,4 @@ external system called the package REST endpoint under the wrong namespace.
 - The remote site is now its own phase (`byoc-remote-site`) ahead of the record, so a record
   failure does not leave the org without it.
 - With these, the connection test passed against this variant (`--org=… --only=byoc-e2e` on the
-  existing org, after re-running the stage there).
+  existing org).

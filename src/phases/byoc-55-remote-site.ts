@@ -7,7 +7,7 @@
  * without it.
  */
 
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { byocConfig } from '../../config/byoc.config.js';
 import { deployDir, escapeXml, freshDir } from '../byoc/org.js';
@@ -18,21 +18,40 @@ const SOURCE = 'generated/byoc/external-remote-site';
 const RETRIEVE_DIR = 'generated/byoc/external-remote-site-check';
 const NAME = 'Messaging_External_Api';
 
-/** The remote site URL for the current external system values. */
-export function externalApiUrl(): string {
+/** Where a setting's value came from, for the log: the run's environment or the schema default. */
+function source(name: string): string {
+  return (process.env[name] ?? '').trim() === '' ? 'default' : 'set';
+}
+
+/** The remote site URL for the current external system values. Logs each input when `ctx` is given. */
+export function externalApiUrl(ctx?: PhaseContext): string {
   const { external, externalApiHostPattern } = byocConfig();
+  const subdomain = external.mtlsEnabled ? external.mtlsSubdomain : 'api';
+  ctx?.log.step(`Host pattern (BYOC_EXT_API_HOST_PATTERN, ${source('BYOC_EXT_API_HOST_PATTERN')}): "${externalApiHostPattern}"`);
+  ctx?.log.step(`Tenant (BYOC_EXT_TENANT, ${source('BYOC_EXT_TENANT')}): "${external.tenant}"`);
+  ctx?.log.step(`Subdomain: "${subdomain}" (mTLS ${external.mtlsEnabled ? 'on, BYOC_EXT_MTLS_SUBDOMAIN' : 'off, fixed'})`);
+
   if (externalApiHostPattern === '') {
     throw new Error(
-      'No external API host pattern configured (BYOC_EXT_API_HOST_PATTERN). Without a remote site ' +
-        'for the external API the org cannot send agent messages out.',
+      'No external API host pattern configured (BYOC_EXT_API_HOST_PATTERN is empty in this run). Without a ' +
+        'remote site for the external API the org cannot send agent messages out. From a terminal, check ' +
+        'that .env has it; in the config UI, check step 1 and save.',
     );
   }
+  if (!externalApiHostPattern.includes('{tenant}')) {
+    ctx?.log.warn('The host pattern has no {tenant} placeholder; the tenant is not used.');
+  }
   if (external.tenant === '') throw new Error('No tenant configured (BYOC_EXT_TENANT); the host pattern needs it.');
-  const url = externalApiHostPattern
-    .replaceAll('{tenant}', external.tenant)
-    .replaceAll('{subdomain}', external.mtlsEnabled ? external.mtlsSubdomain : 'api');
+  if (external.mtlsEnabled && subdomain === '') {
+    throw new Error('mTLS is on but no mTLS API subdomain is configured (BYOC_EXT_MTLS_SUBDOMAIN).');
+  }
+  const url = externalApiHostPattern.replaceAll('{tenant}', external.tenant).replaceAll('{subdomain}', subdomain);
   if (!/^https:\/\/[A-Za-z0-9.-]+$/.test(url)) {
-    throw new Error(`The external API URL "${url}" is not a valid https host. Check the tenant and the host pattern.`);
+    throw new Error(
+      `The external API URL "${url}" is not a valid https host (no path, port or spaces). ` +
+        `Pattern "${externalApiHostPattern}", tenant "${external.tenant}", subdomain "${subdomain}". ` +
+        'The tenant is only the tenant part (e.g. "eu"), not a full host or URL.',
+    );
   }
   return url;
 }
@@ -42,7 +61,8 @@ export const byocRemoteSitePhase: Phase = {
   title: 'Trust the external API (remote site)',
 
   async run(ctx: PhaseContext) {
-    const url = externalApiUrl();
+    const url = externalApiUrl(ctx);
+    ctx.log.step(`Remote site URL: ${url}`);
     const write = freshDir(SOURCE);
     write(
       `remoteSiteSettings/${NAME}.remoteSite-meta.xml`,
@@ -55,7 +75,11 @@ export const byocRemoteSitePhase: Phase = {
 </RemoteSiteSetting>
 `,
     );
-    await deployDir(ctx, SOURCE, 'the external API remote site');
+    try {
+      await deployDir(ctx, SOURCE, 'the external API remote site');
+    } catch (error) {
+      throw new Error(`Deploying remote site "${NAME}" (${url}) failed: ${error instanceof Error ? error.message : String(error)}`);
+    }
 
     // Read back what the org holds, not what was sent.
     freshDir(RETRIEVE_DIR);
@@ -74,10 +98,11 @@ export const byocRemoteSitePhase: Phase = {
       ],
       { onCommand: (c) => ctx.log.command(c) },
     );
-    const xml = readFileSync(
-      resolve(process.cwd(), RETRIEVE_DIR, 'remoteSiteSettings', `${NAME}.remoteSite-meta.xml`),
-      'utf8',
-    );
+    const file = resolve(process.cwd(), RETRIEVE_DIR, 'remoteSiteSettings', `${NAME}.remoteSite-meta.xml`);
+    if (!existsSync(file)) {
+      throw new Error(`Remote site "${NAME}" was deployed but the retrieve returned no file (expected ${file}).`);
+    }
+    const xml = readFileSync(file, 'utf8');
     const stored = xml.match(/<url>([^<]+)<\/url>/)?.[1];
     if (stored !== url || !xml.includes('<isActive>true</isActive>')) {
       throw new Error(`Remote site "${NAME}" reads back as "${stored}" (expected "${url}", active).`);

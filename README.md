@@ -53,7 +53,7 @@ All of these go in step 1 of the page (or `.env`). They are empty by default on 
 | `BYOC_CHANNEL_MATCH` | Text contained in the vendor entry under "Bring Your Own Channels" in Messaging Settings. Must match exactly one |
 | `BYOC_PACKAGE_PERMISSION_SETS` | The package's agent and configuration-admin permission sets |
 | `BYOC_CONFIG_OBJECT` and `BYOC_F_*` | The package configuration object and the API names of its fields |
-| `BYOC_EXT_API_HOST_PATTERN` | Host the org calls out to, e.g. `https://{subdomain}.{tenant}.example.com` |
+| `BYOC_EXT_API_HOST_PATTERN` | Host the org calls out to; default `https://{subdomain}.{tenant}.webexconnect.io` |
 | `BYOC_WIDGET_*` | The chat widget embed code and the selectors of its controls |
 
 Save a set of values as a **profile** (top right of the page) to switch between vendor packages.

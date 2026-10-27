@@ -200,9 +200,12 @@ export const BYOC_SETTINGS: Setting[] = [
     description:
       'Remote site the org calls out to. {tenant} and {subdomain} are replaced from the hand-off values; {subdomain} is "api" unless mTLS is on.',
     type: 'string',
-    default: '',
+    default: 'https://{subdomain}.{tenant}.webexconnect.io',
     group: PACKAGE,
-    placeholder: 'https://{subdomain}.{tenant}.example.com',
+    placeholder: 'https://{subdomain}.{tenant}.webexconnect.io',
+    validate: (value) =>
+      nonEmpty(value) ??
+      (/^https:\/\/[^/\s]*\{tenant\}[^/\s]*$/.test(value) ? undefined : 'Must be https://<host> containing {tenant}.'),
   },
 
   /* ---------------------------------------------------------------------------- Chat widget */
